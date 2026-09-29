@@ -5,8 +5,8 @@ import { buildSeasonAnalysis } from '../services/seasonAnalysis'
 import type { ColorProfile } from '../types/colorProfile'
 import type { ShadowSeasonDimension, ShadowSeasonId } from '../types/shadowSeasonClassification'
 
-export type ResultScenario = 'strong' | 'constrained' | 'tie' | 'indeterminate' | 'retake'
-export const SCENARIOS: ResultScenario[] = ['strong', 'constrained', 'tie', 'indeterminate', 'retake']
+export type ResultScenario = 'strong' | 'constrained' | 'tie' | 'broad' | 'low-certainty' | 'indeterminate' | 'retake'
+export const SCENARIOS: ResultScenario[] = ['strong', 'constrained', 'tie', 'broad', 'low-certainty', 'indeterminate', 'retake']
 
 /** Synthetic integration fixtures, never photo-classification ground truth. */
 export function resultFixture(scenario: ResultScenario, id: ShadowSeasonId = 'soft-summer'): ColorProfile {
@@ -30,6 +30,11 @@ export function resultFixture(scenario: ResultScenario, id: ShadowSeasonId = 'so
   }
   if (scenario === 'constrained') m.temperature.reliability = 0
   if (scenario === 'indeterminate') for (const dimension of dimensions) m[dimension].reliability = 0
+  if (scenario === 'low-certainty') for (const dimension of dimensions) m[dimension].reliability = 0.25
+  if (scenario === 'broad') {
+    for (const dimension of dimensions) m[dimension].reliability = 0.1
+    m.contrast.reliability = 0.8
+  }
   if (scenario === 'tie') {
     const softSummer = SHADOW_SEASON_PROTOTYPES.find(p => p.id === 'soft-summer')!.center
     const softAutumn = SHADOW_SEASON_PROTOTYPES.find(p => p.id === 'soft-autumn')!.center

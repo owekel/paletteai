@@ -11,11 +11,15 @@ import {
   type ClothingRecolorSession,
 } from '../services/clothingRecolor'
 import { isValidHex } from '../services/colorUtils'
+import type { ColourComparison } from '../types/seasonAnalysis'
+import ColourComparisons from './ColourComparisons'
 
 interface ColorTryOnProps {
   imageDataUrl: string
   palette: ColorPalette
   recommendationLabel?: string
+  comparisons?: ColourComparison[]
+  requestedColour?: { hex: string; requestId: number }
 }
 
 type SessionStatus = 'loading' | 'ready' | 'no-clothing' | 'error'
@@ -52,7 +56,7 @@ function CheckIcon({ dark }: { dark: boolean }) {
   )
 }
 
-export default function ColorTryOn({ imageDataUrl, palette, recommendationLabel = 'Recommended for you' }: ColorTryOnProps) {
+export default function ColorTryOn({ imageDataUrl, palette, recommendationLabel = 'Recommended for you', comparisons = [], requestedColour }: ColorTryOnProps) {
   const [status, setStatus] = useState<SessionStatus>('loading')
   const [selectedHex, setSelectedHex] = useState<string | null>(null)
   const [customHex, setCustomHex] = useState(DEFAULT_CUSTOM_HEX)
@@ -128,6 +132,12 @@ export default function ColorTryOn({ imageDataUrl, palette, recommendationLabel 
     // are effectively static for the lifetime of a results page.
   }, [imageDataUrl])
 
+  // A comparison clicked above queues until segmentation is ready. Only the
+  // requested colour changes; the prepared mask/session is reused.
+  useEffect(() => {
+    if (requestedColour && status === 'ready') applyColor(requestedColour.hex)
+  }, [requestedColour, status])
+
   function handleCustomHexCommit() {
     const normalized = normalizeHex(customHex)
     if (isValidHex(normalized) && normalized.toLowerCase() !== selectedHex?.toLowerCase()) {
@@ -139,7 +149,7 @@ export default function ColorTryOn({ imageDataUrl, palette, recommendationLabel 
 
   // Presentational only: which recommended swatch (if any) matches the
   // current selection, for the name/hex feedback readout below.
-  const selectedSwatch = swatchOptions.find((swatch) => swatch.hex.toLowerCase() === selectedHex?.toLowerCase())
+  const selectedSwatch = [...swatchOptions, ...comparisons.flatMap(c => c.options)].find((swatch) => swatch.hex.toLowerCase() === selectedHex?.toLowerCase())
   const selectedLabel = selectedHex ? (selectedSwatch ? selectedSwatch.name : 'Custom colour') : null
 
   // Whether the ORIGINAL photo should be the visible layer right now —
@@ -269,6 +279,14 @@ export default function ColorTryOn({ imageDataUrl, palette, recommendationLabel 
                 )
               })}
             </div>
+
+            {comparisons.length > 0 && (
+              <div className="mt-8">
+                <h3 className="font-display text-xl">Compare on your photo</h3>
+                <p className="mb-4 mt-2 text-sm text-ink-soft">Switch between each pair. Notice which effect you prefer; choosing a colour does not change your analysis.</p>
+                <ColourComparisons comparisons={comparisons} compact selectedHex={selectedHex} onSelect={colour => applyColor(colour.hex)} />
+              </div>
+            )}
 
             {/* Custom colour — visually separated from the recommendations above */}
             <div className="mt-8 border-t border-hairline pt-6">

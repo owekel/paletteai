@@ -24,30 +24,16 @@ export default function ResultsHero({ analysis, imageDataUrl }: ResultsHeroProps
             Your main palette follows {analysis.title}.
           </p>
         )}
-        {!specific && analysis.candidates.length > 0 && (
-          <div className="mt-7">
-            <h2 className="text-sm font-medium">Seasons to explore together</h2>
-            <ul className="mt-3 flex flex-wrap gap-2" aria-label="Possible seasons">
-              {analysis.candidates.map(candidate => (
-                <li key={candidate.id} className="rounded-full border border-hairline bg-white/50 px-3 py-2 text-sm">
-                  {candidate.label}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
-        {analysis.unresolved.length > 0 && (
+        {specific && analysis.unresolved.length > 0 && (
           <p className="mt-6 max-w-xl border-l-2 border-accent/30 pl-4 text-sm leading-relaxed text-ink-soft">
             Still open: {analysis.unresolved.join('; ')}. These qualities remain flexible in your result.
           </p>
         )}
         <div className="mt-8 flex flex-wrap gap-3">
-          <a href={analysis.paletteMode === 'explore' ? '#try-on' : '#your-palette'} className="rounded-full bg-ink px-6 py-3 text-sm font-medium text-paper transition-colors hover:bg-accent">
-            {analysis.paletteMode === 'explore' ? 'Explore colours on your photo' : 'Explore your colours'}
+          <a href="#your-palette" className="rounded-full bg-ink px-6 py-3 text-sm font-medium text-paper transition-colors hover:bg-accent">
+            {analysis.paletteMode === 'starter' ? 'See your starting set' : 'Explore your colours'}
           </a>
-          {analysis.paletteMode !== 'explore' && (
-            <a href="#try-on" className="rounded-full border border-hairline px-6 py-3 text-sm transition-colors hover:border-ink">See them on you ↓</a>
-          )}
+          <a href={analysis.recommendations?.comparisons.length ? '#compare-colours' : '#try-on'} className="rounded-full border border-hairline px-6 py-3 text-sm transition-colors hover:border-ink">{specific ? 'See them on you ↓' : 'Compare colour directions ↓'}</a>
         </div>
       </div>
       <figure className="mx-auto w-full max-w-xs lg:max-w-none">

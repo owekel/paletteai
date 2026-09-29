@@ -6,10 +6,12 @@ export default function ResultsPreview() {
   const initial = new URLSearchParams(location.search).get('scenario') as ResultScenario
   const [scenario, setScenario] = useState<ResultScenario>(SCENARIOS.includes(initial) ? initial : 'strong')
   const [profile, setProfile] = useState(() => resultFixture(scenario))
+  const [image, setImage] = useState(FIXTURE_IMAGE)
+  const [photoError, setPhotoError] = useState('')
   return (
     <>
       <aside className="flex flex-wrap items-center justify-center gap-3 bg-ink px-4 py-3 text-xs text-paper">
-        <span>Developer preview · synthetic data and illustration</span>
+        <span>Developer preview · synthetic analysis{image === FIXTURE_IMAGE ? ' and illustration' : ' with local photo'}</span>
         <label>Result state{' '}
           <select aria-label="Preview result state" className="rounded border border-paper/30 bg-ink p-1" value={scenario} onChange={event => {
             const next = event.target.value as ResultScenario
@@ -19,9 +21,25 @@ export default function ResultsPreview() {
             {SCENARIOS.map(state => <option key={state}>{state}</option>)}
           </select>
         </label>
+        <label className="max-w-xs">Try-on test photo{' '}
+          <input aria-label="Try-on test photo" type="file" accept="image/jpeg,image/png" className="max-w-full text-xs" onChange={event => {
+            const file = event.target.files?.[0]
+            if (!file) return
+            setPhotoError('')
+            if (!['image/jpeg', 'image/png'].includes(file.type)) {
+              setPhotoError('Choose a JPG or PNG.')
+              return
+            }
+            const reader = new FileReader()
+            reader.onload = () => setImage(String(reader.result))
+            reader.onerror = () => setPhotoError('Could not read this photo.')
+            reader.readAsDataURL(file)
+          }} />
+        </label>
+        {photoError && <p role="alert">{photoError}</p>}
         <a href="/" className="underline">Use a real photo →</a>
       </aside>
-      <ResultsPage key={scenario} profile={profile} capturedImageDataUrl={FIXTURE_IMAGE} onStartOver={() => { location.href = '/' }} />
+      <ResultsPage key={scenario} profile={profile} capturedImageDataUrl={image} onStartOver={() => { location.href = '/' }} />
     </>
   )
 }

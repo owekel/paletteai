@@ -1,5 +1,7 @@
-import { assemblePalette, SEASON_PALETTES, sharedSeasonPalette } from '../data/palettes'
+import { assemblePalette, SEASON_PALETTES } from '../data/palettes'
 import { SEASON_PRESENTATION_POLICY as policy } from '../data/seasonPresentationPolicy'
+import { CONSENSUS_PALETTE_POLICY } from '../data/consensusPalettePolicy'
+import { buildConsensusPalette, dimensionRecommendation } from './consensusPalette'
 import type { SeasonAnalysis, ProfileDimension } from '../types/seasonAnalysis'
 import type { ShadowSeasonMeasurements } from '../types/seasonMeasurements'
 import type { ShadowSeasonClassification, ShadowSeasonDimension } from '../types/shadowSeasonClassification'
@@ -41,6 +43,7 @@ export function buildSeasonAnalysis(
     const resolved = quality.measurementReliability.dimensions[id].sufficientlyReliable
     const [value, description] = describe(id, measurements[id].score)
     return { id, label: LABELS[id], resolved, value: resolved ? value : 'Still open',
+      recommendation: resolved ? dimensionRecommendation(id, measurements[id].score) : undefined,
       description: resolved ? description : id === 'contrast'
         ? 'This photo does not settle the contrast between your features.'
         : `This photo does not settle your ${UNRESOLVED[id]}.` }
@@ -52,35 +55,44 @@ export function buildSeasonAnalysis(
   const separated = ratio >= policy.minimumLeadingAffinityRatio
   const status = quality.imageQuality.status === 'retake-required' ? 'retake-required'
     : quality.canPresentSpecificSeason && separated ? 'specific' : 'constrained'
-  const candidates = status === 'retake-required' ? [] : status === 'specific' ? [top]
+  const potentialCandidates = status === 'retake-required' ? [] : status === 'specific' ? [top]
     : !hasMajorEvidence ? []
       : classification.rankings.filter((c, i) =>
         i < policy.minimumCandidates || c.affinityProbability >= top.affinityProbability * policy.candidateAffinityRatio)
-  const reliableDescription = dimensions.filter(d => d.resolved).map(d => d.value.toLowerCase()).join(' · ')
+  const reliableDimensions = dimensions.filter(d => d.resolved)
+  const resultKind = status === 'retake-required' ? 'retake-required' : status === 'specific' ? 'specific'
+    : potentialCandidates.length > 0 && potentialCandidates.length <= CONSENSUS_PALETTE_POLICY.maximumCandidateGroupSize
+      ? 'candidate-group' : 'broad-profile'
+  const candidates = resultKind === 'broad-profile' ? [] : potentialCandidates
+  const reliableDescription = [...reliableDimensions]
+    .sort((a, b) => measurements[b.id].reliability - measurements[a.id].reliability)
+    .map(d => d.value.toLowerCase()).join(' · ')
   const qualities = dimensions.filter(d => d.resolved).map(d =>
     d.id === 'chroma' ? `${d.value.toLowerCase()} colour intensity` : d.value.toLowerCase())
   const qualityList = qualities.length > 1
     ? `${qualities.slice(0, -1).join(', ')} and ${qualities[qualities.length - 1]}` : qualities[0]
-  const title = status === 'specific' ? top.label : reliableDescription || 'Room to explore'
+  const title = status === 'specific' ? top.label : reliableDescription || 'Find your starting colours'
   const summary = status === 'specific'
     ? `Your mix of ${qualityList} puts your colouring closest to ${top.label}. Explore the palette below as a starting point for your style.`
-    : !hasMajorEvidence
-      ? 'Your photo is usable, but it leaves several colour directions open. Explore colours on your photo without committing to a season. You do not need to keep retaking it.'
-      : unresolved.length
-        ? 'Some qualities of your colouring are clear, while others are still open. Start with the colours your possible seasons share.'
-        : 'Your colouring sits close to more than one season. Explore their shared colours first; a single label would be too narrow.'
-  const palette = status === 'specific' ? SEASON_PALETTES[top.id]
-    : status === 'constrained' ? sharedSeasonPalette(candidates.map(c => c.id)) : assemblePalette([], [])
-  const hasColours = palette.best.length + palette.neutrals.length > 0
-  const paletteMode = status === 'specific' ? 'season' : hasColours ? 'shared' : 'explore'
+    : reliableDimensions.length === 0
+      ? 'Your photo is ready for colour comparisons. Start with a few everyday shades, then explore warmth, depth and intensity on your photo. This starting set is for discovery, rather than a personal season recommendation.'
+      : resultKind === 'broad-profile'
+        ? 'These qualities give you a useful starting direction, even without a season label. Begin with the colours below and use the comparisons to explore the details.'
+        : 'Your colouring has something in common with several seasons. Start with colours that have the strongest support across those palettes, then compare the finer differences on your photo.'
+  const consensus = status === 'constrained' ? buildConsensusPalette(measurements,
+    reliableDimensions.length === 0 ? [] : candidates.length ? candidates : classification.rankings,
+    reliableDimensions.map(d => d.id)) : undefined
+  const palette = status === 'specific' ? SEASON_PALETTES[top.id] : consensus?.palette ?? assemblePalette([], [])
+  const paletteMode = status === 'specific' ? 'season' : reliableDimensions.length > 0 ? 'consensus' : 'starter'
   return {
-    status, quality, title, summary, dimensions, candidates, unresolved, palette, paletteMode,
+    status, resultKind, quality, title, summary, dimensions, candidates, unresolved, palette, paletteMode,
+    recommendations: consensus?.recommendations,
     runnerUp: status === 'specific' ? runner : undefined,
     paletteDescription: paletteMode === 'season'
       ? `A curated ${top.label} palette, from expressive accents to everyday neutrals.`
-      : paletteMode === 'shared'
-        ? 'Every shade below appears in all of your possible season palettes. A smaller selection keeps the recommendations grounded in what they share.'
-        : 'There is no shared colour selection to recommend yet. The custom colour preview is here to help you explore freely.',
+      : paletteMode === 'consensus'
+        ? 'A considered mix of shades found in—or close to—several possible palettes, guided by the qualities your photo supports. You do not need to settle on a season to start here.'
+        : 'A balanced set of everyday shades drawn from several palettes. Try them as reference points; the photo has not established a personal colour direction yet.',
     decision: {
       reason: status === 'retake-required' ? 'technical-image-failure'
         : status === 'specific' ? 'reliable-major-dimensions-and-separated-leader'

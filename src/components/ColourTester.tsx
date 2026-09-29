@@ -21,7 +21,7 @@ export default function ColourTester({ palette, shared = false }: ColourTesterPr
     <div className="border-t border-hairline pt-10">
       <h2 className="font-display text-2xl text-ink">Have a colour in mind?</h2>
       <p className="mt-1 max-w-lg text-sm text-ink-soft">
-        Compare a shade with {shared ? 'your shared colours' : 'your palette'} before trying it on.
+        Compare a shade with {shared ? 'your starting colours' : 'your palette'} before trying it on.
       </p>
 
       <div className="mt-6 flex flex-col gap-6 sm:flex-row sm:items-start">

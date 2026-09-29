@@ -110,6 +110,22 @@ export default function SeasonMeasurementDebug({
           <p className="mt-2">Reason: {presentation.decision.reason}</p>
           <p className="mt-2">Top / runner affinity ratio: {fixed(presentation.decision.topToRunnerAffinityRatio)} · palette: {presentation.paletteMode}</p>
           <p className="mt-2">Presentation adds a close-tie check; technical image quality and classifier scores are unchanged.</p>
+          {presentation.recommendations && (
+            <div className="mt-4">
+              <p>Recommendations · {presentation.resultKind} · {presentation.recommendations.diagnostics.version} · personalized: {String(presentation.recommendations.personalized)}</p>
+              <p className="mt-2">Reliable styling axes: {presentation.recommendations.diagnostics.reliableDimensions.join(', ') || 'none; generic comparison set'}</p>
+              <p className="mt-2">Palette weights: {presentation.recommendations.diagnostics.candidateWeights.map(c => `${c.id} ${percent(c.weight)}`).join(' · ')}</p>
+              <p className="mt-2">Support includes nearby OKLab colours. Temperature dependence is downweighted when temperature is unresolved; contrast guides the selection’s tonal spread.</p>
+              <div className="mt-3 overflow-x-auto">
+                <table className="min-w-[650px] w-full text-left text-[11px]">
+                  <thead><tr>{['Hex', 'Weighted support', 'Supporting palettes', 'Dimension fit', 'Warm/cool dependence', 'Base score'].map(label => <th key={label} className="border-b border-hairline p-2 font-normal">{label}</th>)}</tr></thead>
+                  <tbody>{presentation.recommendations.diagnostics.colours.map(c => (
+                    <tr key={c.hex}><td className="p-2">{c.hex}</td><td className="p-2">{fixed(c.support)}</td><td className="p-2">{c.matchingSeasons.length}</td><td className="p-2">{fixed(c.dimensionFit)}</td><td className="p-2">{fixed(c.temperatureDependence)}</td><td className="p-2">{fixed(c.score)}</td></tr>
+                  ))}</tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

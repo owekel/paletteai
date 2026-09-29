@@ -16,6 +16,6 @@ export function evaluateColorMatch(hex: string, palette: ColorPalette, shared = 
       : closest.distance < 0.16 ? 'Neutral' : 'More challenging'
   return {
     rating,
-    explanation: `${closest.distance < 0.09 ? 'Close to' : 'A different direction from'} ${closest.swatch.name} in your ${shared ? 'shared colour selection' : 'palette'}. This compares colour similarity; try it on to see how you like the effect.`,
+    explanation: `${closest.distance < 0.09 ? 'Close to' : 'A different direction from'} ${closest.swatch.name} in your ${shared ? 'starting colour selection' : 'palette'}. This compares colour similarity; try it on to see how you like the effect.`,
   }
 }

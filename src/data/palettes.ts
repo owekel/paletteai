@@ -4,8 +4,8 @@ import type { ShadowSeasonId } from '../types/shadowSeasonClassification'
 type Colour = readonly [name: string, hex: string]
 
 // Curated style starting points, version 1. Shared entries deliberately keep
-// identical hex values: uncertain results use a real intersection, not an
-// averaged colour or the first candidate's palette.
+// identical hex values. Uncertain results score these catalogue colours
+// using weighted perceptual consensus, never the first candidate's palette.
 const C = {
   ivory: ['Soft Ivory', '#F6F1E4'],
   pearl: ['Pearl', '#F1F0EA'],
@@ -127,7 +127,7 @@ export const SEASON_PALETTES: Record<ShadowSeasonId, ColorPalette> = {
     [C.white, C.black, C.charcoal, C.navy], 'Clear, saturated colour with cool brilliance.', [C.taupe, C.terracotta]),
 }
 
-/** Exact intersection across ALL candidates. Never pad it with one season's colours. */
+/** Historical strict-intersection baseline, retained for regression comparisons. */
 export function sharedSeasonPalette(ids: ShadowSeasonId[]): ColorPalette {
   if (!ids.length) return assemblePalette([], [])
   const palettes = [...new Set(ids)].map(id => SEASON_PALETTES[id])
