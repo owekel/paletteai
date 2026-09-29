@@ -1,47 +1,30 @@
-// ---------------------------------------------------------------------------
-// analyzeImage
-//
-// This is the ONE function the rest of the app depends on. It takes a photo
-// and returns a ColorProfile. Nothing outside this file knows *how* that
-// happens — which is exactly what makes it possible to swap out later.
-//
-// HOW THIS VERSION WORKS
-// 1. Try to detect an actual face (src/services/vision/faceDetection.ts) and
-//    an actual hair mask (src/services/vision/hairSegmentation.ts) using
-//    MediaPipe's on-device models, entirely in the browser. Skin, hair, and
-//    eye colour are then sampled from the regions/pixels those models
-//    actually identified — see colourSampling.ts for the trimmed-mean
-//    sampling itself.
-// 2. If that fails for ANY reason — no face found, a model fails to load,
-//    it times out, the photo is unsuitable — this quietly falls back to the
-//    original V1 approach: fixed rectangles guessed from typical portrait
-//    framing (see REGIONS below). The app never crashes because of this;
-//    it just produces a lower-confidence result and says so.
-// 3. Either way, the resulting skin/hair/eye colours feed into the SAME
-//    undertone / depth / contrast / season logic as before — that part is
-//    unchanged. Confidence is now computed from how much could actually be
-//    detected, not just how clear-cut the season match happened to be.
-//
-// All of this happens in the browser. Your PHOTO is never uploaded anywhere;
-// the MediaPipe models themselves are fetched from Google's public CDN the
-// first time they're needed (see vision/loadVisionModels.ts).
-// ---------------------------------------------------------------------------
-
-import type { ColorProfile, Season, Undertone, Depth, Contrast } from '../types/colorProfile'
+// Browser-only feature sampling followed by the continuous 12-season analysis.
+// The shadow-named diagnostic fields remain stable for developer comparisons.
+import type { ColorProfile } from '../types/colorProfile'
 import {
   type RGB,
-  classifyContrastFromDifference,
-  classifyDepth,
-  classifyTemperature,
-  colorDistance,
   getLuminance,
   nearestNamedColor,
   rgbToHex,
 } from './colorUtils'
 import { detectFaceRegions, type NormalizedRect } from './vision/faceDetection'
 import { detectHairMask } from './vision/hairSegmentation'
-import { sampleRegion, sampleMaskedRegion, sampleIrisRing } from './vision/colourSampling'
+import {
+  sampleRegion,
+  sampleMaskedRegion,
+  sampleIrisRing,
+  sampleSkinPolygon,
+  type RegionSample,
+} from './vision/colourSampling'
 import { withTimeout } from './vision/loadVisionModels'
+import { sampleLightingReferences } from './vision/illuminationSampling'
+import {
+  calculateShadowSeasonMeasurements,
+  type FeaturePixelDistribution,
+  type SeasonMeasurementInput,
+} from './seasonMeasurements'
+import { classifyShadowSeason } from './shadowSeasonClassifier'
+import { buildSeasonAnalysis } from './seasonAnalysis'
 
 // --- V1 fallback regions (unchanged) ----------------------------------------
 // Approximate sample regions, expressed as a fraction of the image's
@@ -72,26 +55,6 @@ const EYE_REFERENCE_COLORS: { name: string; rgb: RGB }[] = [
   { name: 'Gray', rgb: { r: 140, g: 140, b: 145 } },
 ]
 
-// Each season's "signature" — used to score how well a reading matches it.
-const SEASON_SIGNATURES: Record<Season, { undertone: Undertone; depths: Depth[]; contrasts: Contrast[] }> = {
-  spring: { undertone: 'warm', depths: ['light', 'medium'], contrasts: ['medium', 'high'] },
-  autumn: { undertone: 'warm', depths: ['medium', 'deep'], contrasts: ['low', 'medium'] },
-  summer: { undertone: 'cool', depths: ['light', 'medium'], contrasts: ['low', 'medium'] },
-  winter: { undertone: 'cool', depths: ['medium', 'deep'], contrasts: ['high'] },
-}
-
-// Secondary-qualifier labels, keyed by [primary season][secondary season].
-const BLENDED_LABELS: Record<Season, Partial<Record<Season, string>>> = {
-  spring: { summer: 'Light Spring', autumn: 'Warm Spring', winter: 'Clear Spring' },
-  summer: { spring: 'Light Summer', autumn: 'Soft Summer', winter: 'Cool Summer' },
-  autumn: { spring: 'Warm Autumn', summer: 'Soft Autumn', winter: 'Deep Autumn' },
-  winter: { spring: 'Clear Winter', summer: 'Cool Winter', autumn: 'Deep Winter' },
-}
-
-function capitalize(word: string): string {
-  return word.charAt(0).toUpperCase() + word.slice(1)
-}
-
 function loadImage(dataUrl: string): Promise<HTMLImageElement> {
   return new Promise((resolve, reject) => {
     const image = new Image()
@@ -107,7 +70,7 @@ function averageColorInRegion(
   width: number,
   height: number,
   region: { xStart: number; xEnd: number; yStart: number; yEnd: number },
-): RGB {
+): RegionSample {
   const x = Math.round(region.xStart * width)
   const y = Math.round(region.yStart * height)
   const regionWidth = Math.max(1, Math.round((region.xEnd - region.xStart) * width))
@@ -119,172 +82,45 @@ function averageColorInRegion(
   let g = 0
   let b = 0
   let pixelCount = 0
+  const pixels: RGB[] = []
+  const maxRetainedPixels = 12000
+  const retentionStride = Math.max(1, Math.ceil(data.length / 4 / maxRetainedPixels))
   for (let i = 0; i < data.length; i += 4) {
     r += data[i]
     g += data[i + 1]
     b += data[i + 2]
+    if (pixelCount % retentionStride === 0) {
+      pixels.push({ r: data[i], g: data[i + 1], b: data[i + 2] })
+    }
     pixelCount += 1
   }
 
-  return { r: r / pixelCount, g: g / pixelCount, b: b / pixelCount }
-}
-
-function determineSeason(
-  undertone: Undertone,
-  depth: Depth,
-  contrast: Contrast,
-): { season: Season; secondarySeason?: Season; label: string; topScore: number } {
-  const scores = (Object.keys(SEASON_SIGNATURES) as Season[]).map((season) => {
-    const signature = SEASON_SIGNATURES[season]
-    let score = 0
-    if (signature.undertone === undertone) score += 2
-    else if (undertone === 'neutral') score += 1
-    if (signature.depths.includes(depth)) score += 1
-    if (signature.contrasts.includes(contrast)) score += 1
-    return { season, score }
-  })
-
-  scores.sort((a, b) => b.score - a.score)
-  const [top, runnerUp] = scores
-  const isClearCut = top.score - runnerUp.score >= 2
-
-  const label = isClearCut
-    ? `True ${capitalize(top.season)}`
-    : BLENDED_LABELS[top.season][runnerUp.season] ?? capitalize(top.season)
-
   return {
-    season: top.season,
-    secondarySeason: isClearCut ? undefined : runnerUp.season,
-    label,
-    topScore: top.score,
+    color: { r: r / pixelCount, g: g / pixelCount, b: b / pixelCount },
+    pixelCount,
+    pixels,
   }
 }
 
-function buildReasoning(
-  undertone: Undertone,
-  depth: Depth,
-  contrast: Contrast,
-  label: string,
-  secondarySeason?: Season,
-): string {
-  const undertoneText =
-    undertone === 'neutral'
-      ? 'a fairly balanced undertone, without a strong pull toward warm or cool'
-      : `a ${undertone} undertone`
-
-  const contrastText =
-    contrast === 'high'
-      ? 'a noticeable amount of contrast between your hair and skin'
-      : contrast === 'medium'
-        ? 'a moderate level of contrast between your hair and skin'
-        : 'fairly soft, blended contrast between your hair and skin'
-
-  const sentences = [
-    `Your photo suggests ${undertoneText}, with ${depth} overall depth and ${contrastText}.`,
-    `That combination puts your colouring closest to ${label}.`,
-  ]
-
-  if (secondarySeason) {
-    sentences.push(
-      `It's not a clean-cut case, though — you also share some qualities with the ${capitalize(secondarySeason)} palette, so it's worth trying colours from both.`,
-    )
-  } else {
-    sentences.push(`This read was fairly clear-cut based on the photo provided.`)
+function combinePixelDistributions(samples: RegionSample[], maximumRetained = 24000): FeaturePixelDistribution {
+  const allPixels = samples.flatMap((sample) => sample.pixels)
+  const stride = Math.max(1, Math.ceil(allPixels.length / maximumRetained))
+  return {
+    pixels: allPixels.filter((_, index) => index % stride === 0).slice(0, maximumRetained),
+    totalPixelCount: samples.reduce((sum, sample) => sum + sample.pixelCount, 0),
   }
-
-  return sentences.join(' ')
 }
 
-// --- Confidence --------------------------------------------------------------
-
-interface ConfidenceInputs {
-  method: 'vision' | 'fallback'
-  faceAreaRatio: number | null
-  hairPixelCount: number
-  hairAreaPixelCount: number
-  hairUsedMaskSampling: boolean
-  skinRegionDistances: number[]
-  eyeSampleUsable: boolean
-}
-
-function computeConfidence(
-  inputs: ConfidenceInputs,
-  seasonTopScore: number,
-): { confidence: number; notes: string[] } {
-  const notes: string[] = []
-
-  if (inputs.method === 'fallback') {
-    notes.push(
-      "We couldn't clearly detect a face in this photo, so this result uses a rough, whole-photo estimate rather than a face-guided one.",
-    )
-    const seasonClarity = seasonTopScore / 4
-    const confidence = Math.min(0.55, Math.max(0.3, 0.3 + seasonClarity * 0.25))
-    return { confidence: Number(confidence.toFixed(2)), notes }
-  }
-
-  let score = 0
-  let factorCount = 0
-
-  // A tiny or very off-centre face means fewer reliable pixels per feature.
-  const faceAreaRatio = inputs.faceAreaRatio ?? 0
-  const faceSizeScore = faceAreaRatio > 0.04 ? 1 : faceAreaRatio > 0.015 ? 0.6 : 0.3
-  if (faceSizeScore < 1) {
-    notes.push('The face took up a small part of the photo, which can make the colour samples less precise.')
-  }
-  score += faceSizeScore
-  factorCount += 1
-
-  // Hair coverage: how much of the candidate hair area the segmentation
-  // model actually confirmed as hair.
-  const hairCoverageRatio = inputs.hairAreaPixelCount > 0 ? inputs.hairPixelCount / inputs.hairAreaPixelCount : 0
-  let hairScore = 1
-  if (!inputs.hairUsedMaskSampling) {
-    hairScore = 0.6
-    notes.push('Hair segmentation was unavailable, so hair colour uses a simpler estimate anchored to the detected face.')
-  } else if (inputs.hairPixelCount < 25) {
-    hairScore = 0.3
-    notes.push('Very little hair was detected in the photo, so hair colour is a rough estimate.')
-  } else if (hairCoverageRatio < 0.08) {
-    hairScore = 0.6
-    notes.push('Only a small amount of hair was visible in the photo, so hair colour may be less precise.')
-  }
-  score += hairScore
-  factorCount += 1
-
-  // Skin agreement: how close the forehead / left-cheek / right-cheek
-  // samples are to each other. Large disagreement usually means uneven
-  // lighting or shadow across the face.
-  const maxSkinDisagreement = inputs.skinRegionDistances.length > 0 ? Math.max(...inputs.skinRegionDistances) : 0
-  const skinScore = maxSkinDisagreement > 70 ? 0.5 : maxSkinDisagreement > 40 ? 0.8 : 1
-  if (skinScore < 1) {
-    notes.push('Lighting looked uneven across the face, which can affect accuracy.')
-  }
-  score += skinScore
-  factorCount += 1
-
-  const eyeScore = inputs.eyeSampleUsable ? 1 : 0.5
-  if (!inputs.eyeSampleUsable) {
-    notes.push('Eye colour was hard to read clearly in this photo, so it may be less accurate.')
-  }
-  score += eyeScore
-  factorCount += 1
-
-  // How clear-cut the season match itself was — kept from the original
-  // logic as one input among several, rather than the only one.
-  score += seasonTopScore / 4
-  factorCount += 1
-
-  const confidence = Math.min(0.95, Math.max(0.45, score / factorCount))
-  return { confidence: Number(confidence.toFixed(2)), notes }
+function toPixelDistribution(sample: RegionSample): FeaturePixelDistribution {
+  return { pixels: sample.pixels, totalPixelCount: sample.pixelCount }
 }
 
 // --- Sampling pipelines --------------------------------------------------
 
 interface PipelineResult {
-  skinRgb: RGB
   hairRgb: RGB
   eyeRgb: RGB
-  confidenceInputs: ConfidenceInputs
+  measurementInput: SeasonMeasurementInput
 }
 
 function runFallbackSampling(
@@ -292,22 +128,36 @@ function runFallbackSampling(
   imgWidth: number,
   imgHeight: number,
 ): PipelineResult {
-  const skinRgb = averageColorInRegion(context, imgWidth, imgHeight, REGIONS.skin)
-  const hairRgb = averageColorInRegion(context, imgWidth, imgHeight, REGIONS.hair)
-  const eyeRgb = averageColorInRegion(context, imgWidth, imgHeight, REGIONS.eyes)
+  const skinSample = averageColorInRegion(context, imgWidth, imgHeight, REGIONS.skin)
+  const hairSample = averageColorInRegion(context, imgWidth, imgHeight, REGIONS.hair)
+  const eyeSample = averageColorInRegion(context, imgWidth, imgHeight, REGIONS.eyes)
+  const skinRgb = skinSample.color
+  const hairRgb = hairSample.color
+  const eyeRgb = eyeSample.color
+  if (!skinRgb || !hairRgb || !eyeRgb) {
+    throw new Error('Fallback sampling returned an empty region.')
+  }
 
   return {
-    skinRgb,
     hairRgb,
     eyeRgb,
-    confidenceInputs: {
+    measurementInput: {
       method: 'fallback',
       faceAreaRatio: null,
-      hairPixelCount: 0,
-      hairAreaPixelCount: 0,
+      skin: toPixelDistribution(skinSample),
+      hair: toPixelDistribution(hairSample),
+      eyes: toPixelDistribution(eyeSample),
+      skinRegions: [{ name: 'fallback', usedLandmarkPolygon: false, ...toPixelDistribution(skinSample) }],
+      eyeRegions: [toPixelDistribution(eyeSample)],
       hairUsedMaskSampling: false,
-      skinRegionDistances: [],
+      hairMaskCoverageRatio: null,
       eyeSampleUsable: false,
+      lightingReferences: {
+        backgroundPixels: [],
+        backgroundTiles: [[], [], [], []],
+        scleraPixels: [],
+        scleraRegions: [[], []],
+      },
     },
   }
 }
@@ -351,27 +201,17 @@ async function tryComputerVisionAnalysis(
   )
   if (skinColors.length === 0) return null // nothing usable — caller falls all the way back
 
-  const skinRgb: RGB = {
-    r: skinColors.reduce((sum, c) => sum + c.r, 0) / skinColors.length,
-    g: skinColors.reduce((sum, c) => sum + c.g, 0) / skinColors.length,
-    b: skinColors.reduce((sum, c) => sum + c.b, 0) / skinColors.length,
-  }
-
-  const skinRegionDistances: number[] = []
-  for (let i = 0; i < skinColors.length; i++) {
-    for (let j = i + 1; j < skinColors.length; j++) {
-      skinRegionDistances.push(colorDistance(skinColors[i], skinColors[j]))
-    }
-  }
 
   // --- Eyes: iris ring samples (excludes the pupil at the centre and any
   //     highlights), discarding anything that still looks too bright overall ---
   const leftEyeSample = sampleIrisRing(context, imgWidth, imgHeight, regions.leftIris)
   const rightEyeSample = sampleIrisRing(context, imgWidth, imgHeight, regions.rightIris)
   const GLARE_LUMINANCE_THRESHOLD = 205
-  const usableEyeColors = [leftEyeSample.color, rightEyeSample.color].filter(
-    (color): color is RGB => color !== null && getLuminance(color) < GLARE_LUMINANCE_THRESHOLD,
+  const allEyeSamples = [leftEyeSample, rightEyeSample]
+  const usableEyeSamples = allEyeSamples.filter(
+    (sample) => sample.color !== null && getLuminance(sample.color) < GLARE_LUMINANCE_THRESHOLD,
   )
+  const usableEyeColors = usableEyeSamples.map((sample) => sample.color as RGB)
   const eyeSampleUsable = usableEyeColors.length > 0
   const eyeRgb: RGB = eyeSampleUsable
     ? {
@@ -388,6 +228,7 @@ async function tryComputerVisionAnalysis(
   let hairPixelCount = 0
   let hairAreaPixelCount = 0
   let hairUsedMaskSampling = false
+  let selectedHairSample: RegionSample
 
   if (hairMask) {
     const hairSample = sampleMaskedRegion(context, imgWidth, imgHeight, regions.hairSearchArea, hairMask)
@@ -396,28 +237,61 @@ async function tryComputerVisionAnalysis(
     if (hairSample.color) {
       hairRgb = hairSample.color
       hairUsedMaskSampling = true
+      selectedHairSample = hairSample
     } else {
       const fallbackSample = sampleRegion(context, imgWidth, imgHeight, narrowedHairFallbackRect(regions.hairSearchArea))
       hairRgb = fallbackSample.color ?? { r: 60, g: 50, b: 45 }
+      selectedHairSample = fallbackSample
     }
   } else {
     const fallbackSample = sampleRegion(context, imgWidth, imgHeight, narrowedHairFallbackRect(regions.hairSearchArea))
     hairRgb = fallbackSample.color ?? { r: 60, g: 50, b: 45 }
     hairAreaPixelCount = fallbackSample.pixelCount
+    selectedHairSample = fallbackSample
   }
 
+  const lightingReferences = sampleLightingReferences(
+    context,
+    imgWidth,
+    imgHeight,
+    hairMask,
+    regions,
+  )
+
+  const legacySkinSamples = [foreheadSample, leftCheekSample, rightCheekSample]
+  const landmarkSkinSamples = regions.skinSamplingRegions.map((region, index) => {
+    const polygonSample = sampleSkinPolygon(context, imgWidth, imgHeight, region, hairMask)
+    const usedLandmarkPolygon = polygonSample.pixelCount >= 40
+    const selectedSample = usedLandmarkPolygon ? polygonSample : legacySkinSamples[index]
+    return {
+      name: region.name,
+      usedLandmarkPolygon,
+      sample: selectedSample,
+    }
+  })
+  const hairMaskCoverageRatio = hairAreaPixelCount > 0
+    ? hairPixelCount / hairAreaPixelCount
+    : null
+
   return {
-    skinRgb,
     hairRgb,
     eyeRgb,
-    confidenceInputs: {
+    measurementInput: {
       method: 'vision',
       faceAreaRatio: regions.faceAreaRatio,
-      hairPixelCount,
-      hairAreaPixelCount,
+      skin: combinePixelDistributions(landmarkSkinSamples.map((region) => region.sample)),
+      hair: toPixelDistribution(selectedHairSample),
+      eyes: combinePixelDistributions(eyeSampleUsable ? usableEyeSamples : allEyeSamples),
+      skinRegions: landmarkSkinSamples.map((region) => ({
+        name: region.name,
+        usedLandmarkPolygon: region.usedLandmarkPolygon,
+        ...toPixelDistribution(region.sample),
+      })),
+      eyeRegions: (eyeSampleUsable ? usableEyeSamples : allEyeSamples).map(toPixelDistribution),
       hairUsedMaskSampling,
-      skinRegionDistances,
+      hairMaskCoverageRatio,
       eyeSampleUsable,
+      lightingReferences,
     },
   }
 }
@@ -448,34 +322,19 @@ export async function analyzeImage(imageDataUrl: string): Promise<ColorProfile> 
     pipelineResult = runFallbackSampling(context, canvas.width, canvas.height)
   }
 
-  const { skinRgb, hairRgb, eyeRgb, confidenceInputs } = pipelineResult
-
-  const skinLuminance = getLuminance(skinRgb)
-  const hairLuminance = getLuminance(hairRgb)
-
-  const undertone = classifyTemperature(skinRgb)
-  const depth = classifyDepth(skinLuminance)
-  const contrast = classifyContrastFromDifference(skinLuminance - hairLuminance)
-
+  const { hairRgb, eyeRgb, measurementInput } = pipelineResult
   const hairMatch = nearestNamedColor(hairRgb, HAIR_REFERENCE_COLORS)
   const eyeMatch = nearestNamedColor(eyeRgb, EYE_REFERENCE_COLORS)
-
-  const { season, secondarySeason, label, topScore } = determineSeason(undertone, depth, contrast)
-  const { confidence, notes: analysisNotes } = computeConfidence(confidenceInputs, topScore)
+  const shadowMeasurements = calculateShadowSeasonMeasurements(measurementInput)
+  const shadowSeasonClassification = classifyShadowSeason(shadowMeasurements)
 
   return {
-    undertone,
-    depth,
-    contrast,
     hairColor: hairMatch.name,
     hairColorHex: rgbToHex(hairRgb),
     eyeColor: eyeMatch.name,
     eyeColorHex: rgbToHex(eyeRgb),
-    season,
-    secondarySeason,
-    seasonLabel: label,
-    seasonReasoning: buildReasoning(undertone, depth, contrast, label, secondarySeason),
-    confidence,
-    analysisNotes,
+    shadowMeasurements,
+    shadowSeasonClassification,
+    analysis: buildSeasonAnalysis(shadowMeasurements, shadowSeasonClassification),
   }
 }

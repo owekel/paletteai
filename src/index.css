@@ -6,8 +6,19 @@ body {
   @apply bg-paper text-ink font-body antialiased;
 }
 
+html { scroll-behavior: smooth; }
+
+:focus-visible { outline: 2px solid #6E2A35; outline-offset: 4px; }
+
+.results-page { animation: result-enter 350ms ease-out; }
+@keyframes result-enter {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 /* Respect users who've asked their system to reduce motion. */
 @media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
   *,
   *::before,
   *::after {

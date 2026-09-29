@@ -21,6 +21,11 @@ export interface ClothingRecolorSession {
   // 0-255 per pixel: how strongly this pixel belongs to the clothing
   // region, already softened at the edges — see buildFeatheredAlphaMask.
   featheredAlpha: Uint8ClampedArray
+  // RGBA-sized companion buffer used only for colour-matted boundary pixels.
+  // RGB stores the estimated skin/background colour and A marks a valid
+  // estimate, allowing applyClothingColor to replace the garment component
+  // of a mixed edge pixel without tinting its background component.
+  edgeBackground: Uint8ClampedArray
   // Robust tonal landmarks from the original garment. Percentiles are used
   // instead of a plain average so a bright logo or deep fold cannot shift
   // the whole recolour and make the fabric look flat or posterized.
@@ -32,6 +37,7 @@ export interface ClothingRecolorSession {
 
 interface ClothingMaskResult {
   alpha: Uint8ClampedArray
+  edgeBackground: Uint8ClampedArray
   shadowLightness: number
   referenceLightness: number
   highlightLightness: number
@@ -48,21 +54,6 @@ function percentileFromHistogram(histogram: Uint32Array, pixelCount: number, per
   }
 
   return 50
-}
-
-// Recolouring pale fabric in gamma-encoded sRGB tends to look chalky and
-// digitally painted. These helpers let the light-colour path apply the
-// garment's lighting in linear light, which behaves much more like real
-// material reflectance.
-function srgbChannelToLinear(channel: number): number {
-  const normalized = clamp(channel / 255, 0, 1)
-  return normalized <= 0.04045 ? normalized / 12.92 : ((normalized + 0.055) / 1.055) ** 2.4
-}
-
-function linearChannelToSrgb(channel: number): number {
-  const normalized = clamp(channel, 0, 1)
-  const encoded = normalized <= 0.0031308 ? normalized * 12.92 : 1.055 * normalized ** (1 / 2.4) - 0.055
-  return encoded * 255
 }
 
 function smoothstep(min: number, max: number, value: number): number {
@@ -92,6 +83,7 @@ function buildFeatheredAlphaMask(
 ): ClothingMaskResult {
   const empty: ClothingMaskResult = {
     alpha: new Uint8ClampedArray(width * height),
+    edgeBackground: new Uint8ClampedArray(width * height * 4),
     shadowLightness: 25,
     referenceLightness: 50,
     highlightLightness: 75,
@@ -143,8 +135,9 @@ function buildFeatheredAlphaMask(
     return { ...empty, shadowLightness, referenceLightness, highlightLightness }
   }
 
-  // Keep this narrow. The previous 1%-of-image blur created a wide zone of
-  // mixed original/target colour, which read as an outline around the shirt.
+  // Blur identifies only a narrow uncertainty band around the semantic edge.
+  // Pixels in that band are resolved from their source colours below rather
+  // than expanding the mask or trusting the blur as garment coverage.
   const featherRadius = Math.max(2, Math.round(Math.min(width, height) * 0.004))
   blurredContext.filter = `blur(${featherRadius}px)`
   blurredContext.drawImage(rawCanvas, 0, 0)
@@ -152,7 +145,105 @@ function buildFeatheredAlphaMask(
 
   const blurredData = blurredContext.getImageData(0, 0, width, height).data
   const alpha = new Uint8ClampedArray(width * height)
+  const edgeBackground = new Uint8ClampedArray(width * height * 4)
+  const matteRadius = Math.max(3, featherRadius + 2)
+
+  function estimateEdgeMatte(pixelIndex: number): { coverage: number; background: RGB } | null {
+    const centerX = pixelIndex % width
+    const centerY = Math.floor(pixelIndex / width)
+    let garmentR = 0
+    let garmentG = 0
+    let garmentB = 0
+    let garmentCount = 0
+    let backgroundR = 0
+    let backgroundG = 0
+    let backgroundB = 0
+    let backgroundCount = 0
+
+    for (let y = Math.max(0, centerY - matteRadius); y <= Math.min(height - 1, centerY + matteRadius); y++) {
+      for (let x = Math.max(0, centerX - matteRadius); x <= Math.min(width - 1, centerX + matteRadius); x++) {
+        const neighbour = y * width + x
+        const neighbourDataIndex = neighbour * 4
+        const neighbourBlur = blurredData[neighbourDataIndex + 3] / 255
+        const neighbourIsGarment = rawImageData.data[neighbourDataIndex + 3] > 0
+
+        // Sample beyond the uncertain band on either side. This produces a
+        // local foreground/background colour pair for the collar pixel rather
+        // than relying on one global shirt or skin colour.
+        if (neighbourIsGarment && neighbourBlur >= 0.9) {
+          garmentR += source[neighbourDataIndex]
+          garmentG += source[neighbourDataIndex + 1]
+          garmentB += source[neighbourDataIndex + 2]
+          garmentCount += 1
+        } else if (!neighbourIsGarment && neighbourBlur <= 0.1) {
+          backgroundR += source[neighbourDataIndex]
+          backgroundG += source[neighbourDataIndex + 1]
+          backgroundB += source[neighbourDataIndex + 2]
+          backgroundCount += 1
+        }
+      }
+    }
+
+    if (garmentCount === 0 || backgroundCount === 0) return null
+
+    const garment = {
+      r: garmentR / garmentCount,
+      g: garmentG / garmentCount,
+      b: garmentB / garmentCount,
+    }
+    const background = {
+      r: backgroundR / backgroundCount,
+      g: backgroundG / backgroundCount,
+      b: backgroundB / backgroundCount,
+    }
+    const direction = {
+      r: garment.r - background.r,
+      g: garment.g - background.g,
+      b: garment.b - background.b,
+    }
+    const denominator = direction.r ** 2 + direction.g ** 2 + direction.b ** 2
+
+    // When garment and background are nearly identical there is no visible
+    // colour halo to correct, and the matte estimate would be unstable.
+    if (denominator < 25 ** 2) return null
+
+    const dataIndex = pixelIndex * 4
+    const relative = {
+      r: source[dataIndex] - background.r,
+      g: source[dataIndex + 1] - background.g,
+      b: source[dataIndex + 2] - background.b,
+    }
+    const coverage = clamp(
+      (relative.r * direction.r + relative.g * direction.g + relative.b * direction.b) / denominator,
+      0,
+      1,
+    )
+
+    // Reject colours that do not plausibly lie on the local garment/background
+    // mixture line (for example hair or an unrelated object crossing the edge).
+    const reconstructed = {
+      r: background.r + direction.r * coverage,
+      g: background.g + direction.g * coverage,
+      b: background.b + direction.b * coverage,
+    }
+    const residual = Math.sqrt(
+      (source[dataIndex] - reconstructed.r) ** 2 +
+        (source[dataIndex + 1] - reconstructed.g) ** 2 +
+        (source[dataIndex + 2] - reconstructed.b) ** 2,
+    )
+    if (residual > 32) return null
+
+    return { coverage, background }
+  }
+
   for (let i = 0; i < alpha.length; i++) {
+    // The previous mask eroded one full model pixel at every edge (and two
+    // beside skin). At photo resolution that removed several genuine garment
+    // pixels, leaving an original-colour collar rim. Start from the model's
+    // un-eroded clothing side; the matte below may recover only source pixels
+    // that contain measurable local garment colour.
+    const isGarmentSide = rawImageData.data[i * 4 + 3] > 0
+
     // Read the actual blurred transparency channel. Reading the red channel
     // here is unreliable because canvas stores blurred colours premultiplied
     // by alpha and un-premultiplies them again when pixels are read back.
@@ -164,10 +255,31 @@ function buildFeatheredAlphaMask(
     // therefore does not create a dark, sticker-like contour.
     const edgePosition = clamp((blurredAlpha - 0.06) / 0.5, 0, 1)
     const smoothAlpha = edgePosition * edgePosition * (3 - 2 * edgePosition)
-    alpha[i] = Math.round(smoothAlpha * 255)
+
+    // Only the narrow uncertainty band gets colour-guided matting. It can
+    // recover a garment-coloured pixel just outside the semantic boundary,
+    // while a true skin/background pixel estimates near-zero garment coverage.
+    const edgeMatte = blurredAlpha > 0.02 && blurredAlpha < 0.98 ? estimateEdgeMatte(i) : null
+    if (edgeMatte) {
+      if (edgeMatte.coverage > 0.04) {
+        alpha[i] = Math.round(edgeMatte.coverage * 255)
+        const backgroundIndex = i * 4
+        edgeBackground[backgroundIndex] = Math.round(edgeMatte.background.r)
+        edgeBackground[backgroundIndex + 1] = Math.round(edgeMatte.background.g)
+        edgeBackground[backgroundIndex + 2] = Math.round(edgeMatte.background.b)
+        edgeBackground[backgroundIndex + 3] = 255
+      } else {
+        // The source colour matches the local skin/background end of the
+        // colour line, so keep it untouched even if the coarse model label
+        // happens to put this pixel on the clothing side.
+        alpha[i] = 0
+      }
+    } else {
+      alpha[i] = isGarmentSide ? Math.round(smoothAlpha * 255) : 0
+    }
   }
 
-  return { alpha, shadowLightness, referenceLightness, highlightLightness, hasClothing: true }
+  return { alpha, edgeBackground, shadowLightness, referenceLightness, highlightLightness, hasClothing: true }
 }
 
 // One-time setup for a given photo: loads it, runs the existing
@@ -188,18 +300,15 @@ export async function prepareClothingRecolorSession(imageDataUrl: string): Promi
   if (!mask) return null
 
   const originalImageData = context.getImageData(0, 0, canvas.width, canvas.height)
-  const { alpha, shadowLightness, referenceLightness, highlightLightness, hasClothing } = buildFeatheredAlphaMask(
-    mask,
-    originalImageData,
-    canvas.width,
-    canvas.height,
-  )
+  const { alpha, edgeBackground, shadowLightness, referenceLightness, highlightLightness, hasClothing } =
+    buildFeatheredAlphaMask(mask, originalImageData, canvas.width, canvas.height)
 
   return {
     imageWidth: canvas.width,
     imageHeight: canvas.height,
     originalImageData,
     featheredAlpha: alpha,
+    edgeBackground,
     shadowLightness,
     referenceLightness,
     highlightLightness,
@@ -218,6 +327,7 @@ export function applyClothingColor(session: ClothingRecolorSession, hex: string)
   const {
     originalImageData,
     featheredAlpha,
+    edgeBackground,
     shadowLightness,
     referenceLightness,
     highlightLightness,
@@ -226,24 +336,36 @@ export function applyClothingColor(session: ClothingRecolorSession, hex: string)
   } = session
   const source = originalImageData.data
 
-  // Real black and white cloth still reflect light. Keeping a small amount
-  // of headroom at both ends lets the original fold pattern remain visible.
-  const baseLightness = clamp(targetHsl.l, 6, 94)
-  const shadowRange = clamp(10 + baseLightness * 0.18, 10, 24)
-  const highlightRange = clamp(10 + (100 - baseLightness) * 0.18, 10, 24)
+  // Real black and white cloth still reflect light. Keep enough headroom for
+  // both shadows and highlights even when the requested swatch is an extreme.
+  const baseLightness = clamp(targetHsl.l, 8, 92)
   const shadowSpan = Math.max(6, referenceLightness - shadowLightness)
   const highlightSpan = Math.max(6, highlightLightness - referenceLightness)
 
-  // Dark colours retain texture best with the percentile/HSL mapping below.
-  // Pale colours are different: treating them the same way makes highlights
-  // clip and gives the garment a flat, chalky coating. Fade to a physically
-  // motivated linear-light multiplication between lightness 62 and 80.
-  const lightFabricWeight = smoothstep(62, 80, targetHsl.l)
-  const targetLinear = {
-    r: srgbChannelToLinear(targetRgb.r),
-    g: srgbChannelToLinear(targetRgb.g),
-    b: srgbChannelToLinear(targetRgb.b),
-  }
+  // Similar-depth colours (for example muted purple -> navy) should keep the
+  // source garment's lightness differences almost one-for-one. Only blend
+  // toward controlled ranges when the requested target is far from the
+  // source or very close to black/white.
+  const distanceRemap = smoothstep(14, 50, Math.abs(baseLightness - referenceLightness))
+  const darkExtremeRemap = 1 - smoothstep(8, 24, baseLightness)
+  const lightExtremeRemap = smoothstep(76, 92, baseLightness)
+  const remapStrength = Math.max(distanceRemap, darkExtremeRemap, lightExtremeRemap)
+
+  const controlledShadowRange = Math.min(
+    clamp(8 + baseLightness * 0.16, 8, 22),
+    Math.max(4, baseLightness - 3),
+  )
+  const controlledHighlightRange = Math.min(
+    clamp(8 + (100 - baseLightness) * 0.16, 8, 22),
+    Math.max(4, 98 - baseLightness),
+  )
+  const shadowRange = shadowSpan + (controlledShadowRange - shadowSpan) * remapStrength
+  const highlightRange = highlightSpan + (controlledHighlightRange - highlightSpan) * remapStrength
+
+  // Fully saturated display colours tend to look emissive on cloth. Treat the
+  // swatch as a dye colour and gently roll back only its most extreme chroma.
+  const saturationRatio = targetHsl.s / 100
+  const fabricBaseSaturation = targetHsl.s * (1 - 0.18 * saturationRatio ** 1.5)
 
   const outputCanvas = document.createElement('canvas')
   outputCanvas.width = imageWidth
@@ -267,43 +389,68 @@ export function applyClothingColor(session: ClothingRecolorSession, hex: string)
       continue
     }
 
-    const originalRgb: RGB = { r: source[dataIndex], g: source[dataIndex + 1], b: source[dataIndex + 2] }
+    const hasEdgeMatte = edgeBackground[dataIndex + 3] > 0
+    const backgroundRgb: RGB | null = hasEdgeMatte
+      ? {
+          r: edgeBackground[dataIndex],
+          g: edgeBackground[dataIndex + 1],
+          b: edgeBackground[dataIndex + 2],
+        }
+      : null
+
+    // A source boundary pixel already contains a mixture of garment and
+    // skin/background. Recover its garment component before calculating tone;
+    // otherwise the original blue contaminates the coral edge even when the
+    // mask opacity is increased.
+    const originalRgb: RGB = backgroundRgb
+      ? {
+          r: clamp((source[dataIndex] - (1 - pixelAlpha) * backgroundRgb.r) / pixelAlpha, 0, 255),
+          g: clamp((source[dataIndex + 1] - (1 - pixelAlpha) * backgroundRgb.g) / pixelAlpha, 0, 255),
+          b: clamp((source[dataIndex + 2] - (1 - pixelAlpha) * backgroundRgb.b) / pixelAlpha, 0, 255),
+        }
+      : { r: source[dataIndex], g: source[dataIndex + 1], b: source[dataIndex + 2] }
     const originalLightness = rgbToHsl(originalRgb).l
 
     const tonalPosition =
       originalLightness < referenceLightness
         ? (originalLightness - referenceLightness) / shadowSpan
         : (originalLightness - referenceLightness) / highlightSpan
-    const naturalTone = Math.tanh(tonalPosition * 0.9)
+
+    // Preserve all local contrast within the robust p10-p90 range. Only the
+    // rare values beyond it receive a soft logarithmic shoulder, preventing a
+    // logo or specular pixel from clipping the whole transform.
+    const tonalMagnitude = Math.abs(tonalPosition)
+    const naturalTone =
+      tonalMagnitude <= 1
+        ? tonalPosition
+        : Math.sign(tonalPosition) * (1 + Math.log1p(tonalMagnitude - 1) * 0.35)
     const lightnessRange = naturalTone < 0 ? shadowRange : highlightRange
-    const recoloredLightness = clamp(baseLightness + naturalTone * lightnessRange, 0, 100)
+    const recoloredLightness = clamp(baseLightness + naturalTone * lightnessRange, 2, 98)
 
-    // Slightly soften chroma at the deepest folds and brightest highlights,
-    // as real dyed fabric does, while keeping the selected colour exact in
-    // the garment's midtones.
-    const recoloredSaturation = targetHsl.s * (1 - Math.min(1, Math.abs(naturalTone)) * 0.12)
-    const darkFabricRgb = hslToRgb({ h: targetHsl.h, s: recoloredSaturation, l: recoloredLightness })
+    // Highlights and deep folds naturally lose a little chroma. This keeps
+    // reds from turning fluorescent while allowing the midtone to communicate
+    // the selected dye colour.
+    const toneStrength = Math.min(1, Math.abs(naturalTone))
+    const chromaRolloff = naturalTone < 0 ? 0.1 : 0.18
+    const recoloredSaturation = fabricBaseSaturation * (1 - toneStrength * chromaRolloff)
+    const recoloredRgb: RGB = hslToRgb({
+      h: targetHsl.h,
+      s: recoloredSaturation,
+      l: recoloredLightness,
+    })
 
-    // Use the original garment tone as a bounded lighting multiplier. This
-    // keeps a pale colour's own channel balance while the existing folds and
-    // shadows modulate it naturally. Asymmetric strength prevents highlights
-    // from blowing out while still giving shadows enough depth.
-    const lightingMultiplier = Math.exp(naturalTone * (naturalTone < 0 ? 0.48 : 0.27))
-    const lightFabricRgb: RGB = {
-      r: linearChannelToSrgb(targetLinear.r * lightingMultiplier),
-      g: linearChannelToSrgb(targetLinear.g * lightingMultiplier),
-      b: linearChannelToSrgb(targetLinear.b * lightingMultiplier),
+    if (backgroundRgb) {
+      // Recompose the recoloured garment component over the untouched local
+      // background. This removes original-shirt contamination without ever
+      // recolouring the skin/background contribution of the mixed pixel.
+      output[dataIndex] = backgroundRgb.r + (recoloredRgb.r - backgroundRgb.r) * pixelAlpha
+      output[dataIndex + 1] = backgroundRgb.g + (recoloredRgb.g - backgroundRgb.g) * pixelAlpha
+      output[dataIndex + 2] = backgroundRgb.b + (recoloredRgb.b - backgroundRgb.b) * pixelAlpha
+    } else {
+      output[dataIndex] = originalRgb.r + (recoloredRgb.r - originalRgb.r) * pixelAlpha
+      output[dataIndex + 1] = originalRgb.g + (recoloredRgb.g - originalRgb.g) * pixelAlpha
+      output[dataIndex + 2] = originalRgb.b + (recoloredRgb.b - originalRgb.b) * pixelAlpha
     }
-
-    const recoloredRgb: RGB = {
-      r: darkFabricRgb.r + (lightFabricRgb.r - darkFabricRgb.r) * lightFabricWeight,
-      g: darkFabricRgb.g + (lightFabricRgb.g - darkFabricRgb.g) * lightFabricWeight,
-      b: darkFabricRgb.b + (lightFabricRgb.b - darkFabricRgb.b) * lightFabricWeight,
-    }
-
-    output[dataIndex] = originalRgb.r + (recoloredRgb.r - originalRgb.r) * pixelAlpha
-    output[dataIndex + 1] = originalRgb.g + (recoloredRgb.g - originalRgb.g) * pixelAlpha
-    output[dataIndex + 2] = originalRgb.b + (recoloredRgb.b - originalRgb.b) * pixelAlpha
     output[dataIndex + 3] = source[dataIndex + 3]
   }
 

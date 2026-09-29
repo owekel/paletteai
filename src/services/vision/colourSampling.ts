@@ -6,16 +6,35 @@
 
 import type { RGB } from '../colorUtils'
 import { getLuminance } from '../colorUtils'
-import type { NormalizedRect, IrisSampleRegion } from './faceDetection'
+import type { NormalizedRect, IrisSampleRegion, SkinSamplingRegion } from './faceDetection'
 import type { HairMask } from './hairSegmentation'
 import { isHairAtRelativePosition } from './hairSegmentation'
 
 export interface RegionSample {
   color: RGB | null
   pixelCount: number
+  /**
+   * Representative source pixels retained for perceptual distribution
+   * analysis. Capped to avoid keeping millions of RGB objects for large
+   * photos; pixelCount still reports the full number used by the legacy mean.
+   */
+  pixels: RGB[]
 }
 
 const TRIM_FRACTION = 0.1
+const MAX_RETAINED_PIXELS = 12000
+
+function retainReservoirPixel(pixels: RGB[], pixel: RGB, seenPixelCount: number): void {
+  if (pixels.length < MAX_RETAINED_PIXELS) {
+    pixels.push(pixel)
+    return
+  }
+
+  // Deterministic reservoir sampling keeps runs reproducible while spreading
+  // the retained pixels across the complete masked feature distribution.
+  const candidate = (Math.imul(seenPixelCount, 2654435761) >>> 0) % seenPixelCount
+  if (candidate < MAX_RETAINED_PIXELS) pixels[candidate] = pixel
+}
 
 function trimmedMean(values: number[]): number {
   if (values.length === 0) return 0
@@ -34,6 +53,70 @@ function toPixelRect(rect: NormalizedRect, imgWidth: number, imgHeight: number) 
   return { x, y, width, height }
 }
 
+function pointInPolygon(x: number, y: number, polygon: { x: number; y: number }[]): boolean {
+  let inside = false
+  for (let i = 0, j = polygon.length - 1; i < polygon.length; j = i++) {
+    const current = polygon[i]
+    const previous = polygon[j]
+    const crosses = current.y > y !== previous.y > y
+    const intersectionX = ((previous.x - current.x) * (y - current.y)) / (previous.y - current.y || 1e-9) + current.x
+    if (crosses && x < intersectionX) inside = !inside
+  }
+  return inside
+}
+
+/**
+ * Samples a landmark-defined skin polygon while excluding facial-feature
+ * polygons and any pixel the segmentation model explicitly calls hair.
+ * Colour outlier rejection happens later, after illumination correction.
+ */
+export function sampleSkinPolygon(
+  context: CanvasRenderingContext2D,
+  imgWidth: number,
+  imgHeight: number,
+  region: SkinSamplingRegion,
+  hairMask: HairMask | null,
+): RegionSample {
+  const xStart = Math.max(0, Math.floor(Math.min(...region.polygon.points.map((point) => point.x)) * imgWidth))
+  const xEnd = Math.min(imgWidth, Math.ceil(Math.max(...region.polygon.points.map((point) => point.x)) * imgWidth))
+  const yStart = Math.max(0, Math.floor(Math.min(...region.polygon.points.map((point) => point.y)) * imgHeight))
+  const yEnd = Math.min(imgHeight, Math.ceil(Math.max(...region.polygon.points.map((point) => point.y)) * imgHeight))
+  const width = Math.max(1, xEnd - xStart)
+  const height = Math.max(1, yEnd - yStart)
+  const { data } = context.getImageData(xStart, yStart, width, height)
+
+  const rValues: number[] = []
+  const gValues: number[] = []
+  const bValues: number[] = []
+  const pixels: RGB[] = []
+  let acceptedPixelCount = 0
+
+  for (let localY = 0; localY < height; localY++) {
+    for (let localX = 0; localX < width; localX++) {
+      const relativeX = (xStart + localX + 0.5) / imgWidth
+      const relativeY = (yStart + localY + 0.5) / imgHeight
+      if (!pointInPolygon(relativeX, relativeY, region.polygon.points)) continue
+      if (region.exclusions.some((exclusion) => pointInPolygon(relativeX, relativeY, exclusion.points))) continue
+      if (hairMask && isHairAtRelativePosition(hairMask, relativeX, relativeY)) continue
+
+      const dataIndex = (localY * width + localX) * 4
+      const pixel = { r: data[dataIndex], g: data[dataIndex + 1], b: data[dataIndex + 2] }
+      rValues.push(pixel.r)
+      gValues.push(pixel.g)
+      bValues.push(pixel.b)
+      acceptedPixelCount += 1
+      retainReservoirPixel(pixels, pixel, acceptedPixelCount)
+    }
+  }
+
+  if (acceptedPixelCount === 0) return { color: null, pixelCount: 0, pixels: [] }
+  return {
+    color: { r: trimmedMean(rValues), g: trimmedMean(gValues), b: trimmedMean(bValues) },
+    pixelCount: acceptedPixelCount,
+    pixels,
+  }
+}
+
 // Samples every pixel in the region — used for skin and eye regions, which
 // come from face landmarks and are already trusted to be the right area.
 export function sampleRegion(
@@ -48,17 +131,23 @@ export function sampleRegion(
   const rValues: number[] = []
   const gValues: number[] = []
   const bValues: number[] = []
+  const pixels: RGB[] = []
+  const retentionStride = Math.max(1, Math.ceil((width * height) / MAX_RETAINED_PIXELS))
   for (let i = 0; i < data.length; i += 4) {
     rValues.push(data[i])
     gValues.push(data[i + 1])
     bValues.push(data[i + 2])
+    if (i / 4 % retentionStride === 0) {
+      pixels.push({ r: data[i], g: data[i + 1], b: data[i + 2] })
+    }
   }
 
-  if (rValues.length === 0) return { color: null, pixelCount: 0 }
+  if (rValues.length === 0) return { color: null, pixelCount: 0, pixels: [] }
 
   return {
     color: { r: trimmedMean(rValues), g: trimmedMean(gValues), b: trimmedMean(bValues) },
     pixelCount: rValues.length,
+    pixels,
   }
 }
 
@@ -78,7 +167,9 @@ export function sampleMaskedRegion(
   const rValues: number[] = []
   const gValues: number[] = []
   const bValues: number[] = []
+  const pixels: RGB[] = []
   let areaPixelCount = 0
+  let hairPixelCount = 0
 
   for (let localY = 0; localY < height; localY++) {
     for (let localX = 0; localX < width; localX++) {
@@ -90,18 +181,22 @@ export function sampleMaskedRegion(
       if (!isHair) continue
 
       const dataIndex = (localY * width + localX) * 4
-      rValues.push(data[dataIndex])
-      gValues.push(data[dataIndex + 1])
-      bValues.push(data[dataIndex + 2])
+      const pixel = { r: data[dataIndex], g: data[dataIndex + 1], b: data[dataIndex + 2] }
+      rValues.push(pixel.r)
+      gValues.push(pixel.g)
+      bValues.push(pixel.b)
+      hairPixelCount += 1
+      retainReservoirPixel(pixels, pixel, hairPixelCount)
     }
   }
 
-  if (rValues.length === 0) return { color: null, pixelCount: 0, areaPixelCount }
+  if (rValues.length === 0) return { color: null, pixelCount: 0, areaPixelCount, pixels: [] }
 
   return {
     color: { r: trimmedMean(rValues), g: trimmedMean(gValues), b: trimmedMean(bValues) },
     pixelCount: rValues.length,
     areaPixelCount,
+    pixels,
   }
 }
 
@@ -134,6 +229,7 @@ export function sampleIrisRing(
   const rValues: number[] = []
   const gValues: number[] = []
   const bValues: number[] = []
+  const pixels: RGB[] = []
 
   for (let localY = 0; localY < height; localY++) {
     for (let localX = 0; localX < width; localX++) {
@@ -159,13 +255,15 @@ export function sampleIrisRing(
       rValues.push(r)
       gValues.push(g)
       bValues.push(b)
+      retainReservoirPixel(pixels, { r, g, b }, rValues.length)
     }
   }
 
-  if (rValues.length === 0) return { color: null, pixelCount: 0 }
+  if (rValues.length === 0) return { color: null, pixelCount: 0, pixels: [] }
 
   return {
     color: { r: trimmedMean(rValues), g: trimmedMean(gValues), b: trimmedMean(bValues) },
     pixelCount: rValues.length,
+    pixels,
   }
 }

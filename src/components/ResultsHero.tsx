@@ -1,58 +1,68 @@
-import type { ColorPalette, ColorProfile } from '../types/colorProfile'
-import ColourSwatch from './ColourSwatch'
+import type { SeasonAnalysis } from '../types/seasonAnalysis'
 
 interface ResultsHeroProps {
-  profile: ColorProfile
-  palette: ColorPalette
+  analysis: SeasonAnalysis
+  imageDataUrl: string
 }
 
-function confidenceDescription(confidence: number): string {
-  if (confidence >= 0.8) return 'a fairly clear-cut read'
-  if (confidence >= 0.65) return 'a reasonably confident read'
-  return 'a less clear-cut read, closer to a best estimate'
-}
-
-// The large opening moment of the results page: season name as the
-// headline, a short explanation, and the person's own palette as a real
-// visual gallery — all built from data the existing analysis already
-// produced, nothing new is calculated here.
-export default function ResultsHero({ profile, palette }: ResultsHeroProps) {
+export default function ResultsHero({ analysis, imageDataUrl }: ResultsHeroProps) {
+  const specific = analysis.status === 'specific'
+  const colours = [...analysis.palette.best, ...analysis.palette.neutrals].slice(0, 6)
   return (
-    <div>
-      <p className="font-display text-xl tracking-tight">PaletteAI</p>
-
-      <h1 className="mt-6 font-display text-6xl leading-[1.02] text-ink sm:text-7xl lg:text-8xl">
-        {profile.seasonLabel}
-      </h1>
-
-      <p className="mt-7 max-w-2xl text-lg leading-relaxed text-ink-soft">{profile.seasonReasoning}</p>
-
-      <p className="mt-4 max-w-2xl text-sm text-ink-soft">
-        This was {confidenceDescription(profile.confidence)} — colour analysis is inherently a
-        little subjective, so treat it as a helpful starting point rather than a fixed rule.
-      </p>
-
-      {profile.analysisNotes.length > 0 && (
-        <div className="mt-4 max-w-2xl border border-accent bg-accent-soft px-4 py-3 text-sm text-accent">
-          <p className="font-medium">Why this reading may be less precise:</p>
-          <ul className="mt-1.5 list-disc space-y-1 pl-4">
-            {profile.analysisNotes.map((note) => (
-              <li key={note}>{note}</li>
-            ))}
-          </ul>
-        </div>
-      )}
-
-      {palette.best.length > 0 && (
-        <div className="mt-16">
-          <p className="text-sm font-medium text-ink-soft">Your Palette</p>
-          <div className="mt-5 grid grid-cols-2 gap-5 sm:grid-cols-4">
-            {palette.best.map((swatch) => (
-              <ColourSwatch key={swatch.hex} name={swatch.name} hex={swatch.hex} size="large" />
-            ))}
+    <section className="grid items-center gap-10 lg:grid-cols-[1.3fr_0.7fr] lg:gap-16" aria-labelledby="result-title">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-[0.2em] text-accent">
+          {specific ? 'Your closest season' : 'Your colour direction'}
+        </p>
+        <h1 id="result-title" className={`mt-5 font-display leading-[1.08] text-ink ${specific ? 'text-5xl sm:text-7xl' : 'text-4xl capitalize sm:text-5xl'}`}>
+          {analysis.title}
+        </h1>
+        <p className="mt-6 max-w-xl text-base leading-relaxed text-ink-soft sm:text-lg">{analysis.summary}</p>
+        {specific && analysis.runnerUp && (
+          <p className="mt-5 text-sm text-ink-soft">
+            A nearby direction: <span className="font-medium text-ink">{analysis.runnerUp.label}</span>.
+            Your main palette follows {analysis.title}.
+          </p>
+        )}
+        {!specific && analysis.candidates.length > 0 && (
+          <div className="mt-7">
+            <h2 className="text-sm font-medium">Seasons to explore together</h2>
+            <ul className="mt-3 flex flex-wrap gap-2" aria-label="Possible seasons">
+              {analysis.candidates.map(candidate => (
+                <li key={candidate.id} className="rounded-full border border-hairline bg-white/50 px-3 py-2 text-sm">
+                  {candidate.label}
+                </li>
+              ))}
+            </ul>
           </div>
+        )}
+        {analysis.unresolved.length > 0 && (
+          <p className="mt-6 max-w-xl border-l-2 border-accent/30 pl-4 text-sm leading-relaxed text-ink-soft">
+            Still open: {analysis.unresolved.join('; ')}. These qualities remain flexible in your result.
+          </p>
+        )}
+        <div className="mt-8 flex flex-wrap gap-3">
+          <a href={analysis.paletteMode === 'explore' ? '#try-on' : '#your-palette'} className="rounded-full bg-ink px-6 py-3 text-sm font-medium text-paper transition-colors hover:bg-accent">
+            {analysis.paletteMode === 'explore' ? 'Explore colours on your photo' : 'Explore your colours'}
+          </a>
+          {analysis.paletteMode !== 'explore' && (
+            <a href="#try-on" className="rounded-full border border-hairline px-6 py-3 text-sm transition-colors hover:border-ink">See them on you ↓</a>
+          )}
         </div>
-      )}
-    </div>
+      </div>
+      <figure className="mx-auto w-full max-w-xs lg:max-w-none">
+        <div className="overflow-hidden rounded-t-[7rem] rounded-b-2xl bg-white/40 shadow-[0_20px_50px_-30px_rgba(28,26,23,0.35)]">
+          <img src={imageDataUrl} alt="Your original analysis photo" className="aspect-[4/5] w-full object-cover" />
+          {colours.length > 0 && (
+            <div className="flex h-10" aria-hidden="true">
+              {colours.map(c => <span key={c.hex} className="flex-1" style={{ backgroundColor: c.hex }} />)}
+            </div>
+          )}
+        </div>
+        <figcaption className="mt-3 text-center text-xs text-ink-soft">
+          Your original photo · analysed privately in your browser
+        </figcaption>
+      </figure>
+    </section>
   )
 }

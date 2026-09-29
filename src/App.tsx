@@ -1,6 +1,5 @@
 import { useState } from 'react'
-import type { ColorPalette, ColorProfile, Screen } from './types/colorProfile'
-import { generatePalette } from './data/palettes'
+import type { ColorProfile, Screen } from './types/colorProfile'
 import LandingPage from './components/LandingPage'
 import CaptureScreen from './components/CaptureScreen'
 import AnalysisLoading from './components/AnalysisLoading'
@@ -10,7 +9,6 @@ export default function App() {
   const [screen, setScreen] = useState<Screen>('landing')
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null)
   const [profile, setProfile] = useState<ColorProfile | null>(null)
-  const [palette, setPalette] = useState<ColorPalette | null>(null)
   const [analysisError, setAnalysisError] = useState<string | null>(null)
 
   function handleStart() {
@@ -31,7 +29,6 @@ export default function App() {
 
   function handleAnalysisComplete(result: ColorProfile) {
     setProfile(result)
-    setPalette(generatePalette(result))
     // Kept (rather than cleared) now that the results page uses it for the
     // colour try-on feature. Still never leaves the browser or a server.
     setScreen('results')
@@ -39,7 +36,6 @@ export default function App() {
 
   function handleStartOver() {
     setProfile(null)
-    setPalette(null)
     setImageDataUrl(null)
     setScreen('upload')
   }
@@ -60,10 +56,9 @@ export default function App() {
         />
       )}
 
-      {screen === 'results' && profile && palette && imageDataUrl && (
+      {screen === 'results' && profile && imageDataUrl && (
         <ResultsPage
           profile={profile}
-          palette={palette}
           capturedImageDataUrl={imageDataUrl}
           onStartOver={handleStartOver}
         />

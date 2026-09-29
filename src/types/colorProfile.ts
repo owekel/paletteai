@@ -1,35 +1,21 @@
-// Core types describing a person's estimated colour profile.
-// Keeping these in one place means the analysis service, the palette
-// generator, and every component all agree on the same shape of data.
+import type { ShadowSeasonMeasurements } from './seasonMeasurements'
+import type { ShadowSeasonClassification } from './shadowSeasonClassification'
+import type { SeasonAnalysis } from './seasonAnalysis'
 
+// These categories remain for general colour utility functions only.
 export type Undertone = 'warm' | 'cool' | 'neutral'
 export type Depth = 'light' | 'medium' | 'deep'
 export type Contrast = 'low' | 'medium' | 'high'
 
-// The four classic "colour seasons" used in personal colour analysis,
-// each of which can carry a secondary qualifier (see seasonLabel below).
-export type Season = 'spring' | 'summer' | 'autumn' | 'winter'
-
 export interface ColorProfile {
-  undertone: Undertone
-  depth: Depth
-  contrast: Contrast
-
-  hairColor: string // human-readable name, e.g. "Dark Brown"
-  hairColorHex: string // sampled colour, e.g. "#3B2A20"
-
-  eyeColor: string // human-readable name, e.g. "Hazel"
+  hairColor: string
+  hairColorHex: string
+  eyeColor: string
   eyeColorHex: string
-
-  season: Season // primary season match
-  secondarySeason?: Season // closest "runner up", when the read is a blend
-  seasonLabel: string // display label, e.g. "Soft Autumn"
-  seasonReasoning: string // 2-4 sentence, plain-language explanation
-
-  confidence: number // 0 to 1 — how clear-cut the read was, not a "score"
-  // Plain-language reasons the confidence is lower than ideal (e.g. "no face
-  // detected", "very little hair was visible"). Empty when nothing stood out.
-  analysisNotes: string[]
+  analysis: SeasonAnalysis
+  /** Historical field names retained for the existing developer diagnostics. */
+  shadowMeasurements: ShadowSeasonMeasurements
+  shadowSeasonClassification: ShadowSeasonClassification
 }
 
 export interface ColorSwatchData {

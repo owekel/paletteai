@@ -1,26 +1,27 @@
 import { useMemo, useState, type ChangeEvent } from 'react'
-import type { ColorProfile } from '../types/colorProfile'
+import type { ColorPalette } from '../types/colorProfile'
 import { evaluateColorMatch } from '../services/evaluateColorMatch'
 import { isValidHex } from '../services/colorUtils'
 
 interface ColourTesterProps {
-  profile: ColorProfile
+  palette: ColorPalette
+  shared?: boolean
 }
 
-export default function ColourTester({ profile }: ColourTesterProps) {
+export default function ColourTester({ palette, shared = false }: ColourTesterProps) {
   const [hex, setHex] = useState('#4A6FA5')
 
   const normalizedHex = hex.startsWith('#') ? hex : `#${hex}`
   const result = useMemo(() => {
     if (!isValidHex(normalizedHex)) return null
-    return evaluateColorMatch(normalizedHex, profile)
-  }, [normalizedHex, profile])
+    return evaluateColorMatch(normalizedHex, palette, shared)
+  }, [normalizedHex, palette, shared])
 
   return (
     <div className="border-t border-hairline pt-10">
-      <h2 className="font-display text-2xl text-ink">Try a Colour</h2>
+      <h2 className="font-display text-2xl text-ink">Have a colour in mind?</h2>
       <p className="mt-1 max-w-lg text-sm text-ink-soft">
-        Curious about a specific colour? Pick one and see how it may work for you.
+        Compare a shade with {shared ? 'your shared colours' : 'your palette'} before trying it on.
       </p>
 
       <div className="mt-6 flex flex-col gap-6 sm:flex-row sm:items-start">
@@ -37,6 +38,7 @@ export default function ColourTester({ profile }: ColourTesterProps) {
             value={hex}
             onChange={(event: ChangeEvent<HTMLInputElement>) => setHex(event.target.value)}
             placeholder="#4A6FA5"
+            aria-label="Colour to compare, hex code"
             className="w-32 border border-hairline bg-surface px-3 py-3 font-mono text-sm uppercase text-ink focus:border-ink focus:outline-none"
             maxLength={7}
           />

@@ -13,7 +13,9 @@
 // Your PHOTO itself is never sent anywhere; only these generic, public
 // model files are fetched.
 
-import { FilesetResolver, FaceLandmarker, ImageSegmenter, type WasmFileset } from '@mediapipe/tasks-vision'
+import { FilesetResolver, FaceLandmarker, ImageSegmenter } from '@mediapipe/tasks-vision'
+
+type WasmFileset = Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>
 
 // Pinned to match the npm package version in package.json. These two need
 // to stay in sync — if you bump the npm dependency, update this too.

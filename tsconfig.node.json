@@ -1,6 +1,8 @@
 {
   "compilerOptions": {
     "composite": true,
+    "outDir": "./node_modules/.cache/paletteai-tsc",
+    "tsBuildInfoFile": "./node_modules/.cache/paletteai-tsc/build.tsbuildinfo",
     "skipLibCheck": true,
     "module": "ESNext",
     "moduleResolution": "bundler",

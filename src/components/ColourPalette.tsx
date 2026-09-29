@@ -3,14 +3,15 @@ import ColourSwatch from './ColourSwatch'
 
 interface ColourPaletteProps {
   palette: ColorPalette
+  shared?: boolean
 }
 
-export default function ColourPalette({ palette }: ColourPaletteProps) {
+export default function ColourPalette({ palette, shared = false }: ColourPaletteProps) {
   return (
     <div className="space-y-14">
       <PaletteGroup
-        title="Best Colours"
-        intro="The shades most likely to complement your colouring."
+        title={shared ? 'Shared accents' : 'Signature colours'}
+        intro={shared ? 'Colourful options included across every season in your group.' : 'Start here for colour close to your face.'}
         swatches={palette.best}
       />
 
@@ -38,6 +39,7 @@ function PaletteGroup({
   intro: string
   swatches: ColorPalette['best']
 }) {
+  if (!swatches.length) return null
   return (
     <div>
       <h2 className="font-display text-2xl text-ink">{title}</h2>

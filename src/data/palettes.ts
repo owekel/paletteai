@@ -1,192 +1,139 @@
-// Curated colour data for each of the four classic "seasons". This is where
-// the actual fashion knowledge lives — plain data, no logic — which keeps it
-// easy to tweak or extend (e.g. splitting each season into its 12-season
-// sub-variants later) without touching any component code.
+import type { ColorPalette, ColorSwatchData } from '../types/colorProfile'
+import type { ShadowSeasonId } from '../types/shadowSeasonClassification'
 
-import type { ColorPalette, ColorProfile, ColorSwatchData, Season } from '../types/colorProfile'
+type Colour = readonly [name: string, hex: string]
 
-// Small helper so the palette data below reads as a plain list, not a
-// wall of repeated `{ name: ..., hex: ..., description: ... }` objects.
-function sw(name: string, hex: string, description: string): ColorSwatchData {
-  return { name, hex, description }
+// Curated style starting points, version 1. Shared entries deliberately keep
+// identical hex values: uncertain results use a real intersection, not an
+// averaged colour or the first candidate's palette.
+const C = {
+  ivory: ['Soft Ivory', '#F6F1E4'],
+  pearl: ['Pearl', '#F1F0EA'],
+  stone: ['Stone', '#B5ADA0'],
+  taupe: ['Soft Taupe', '#9C8C80'],
+  navy: ['Soft Navy', '#38455E'],
+  charcoal: ['Charcoal', '#34373D'],
+  black: ['Ink Black', '#191B22'],
+  white: ['Clear White', '#F8FAFC'],
+  camel: ['Camel', '#C69C6D'],
+  chocolate: ['Chocolate', '#5A3A22'],
+  espresso: ['Espresso', '#382E2C'],
+  silver: ['Silver Grey', '#BCC1C9'],
+  peach: ['Peach', '#FFB48A'],
+  apricot: ['Apricot', '#F4AB78'],
+  coral: ['Coral', '#FF6F59'],
+  aqua: ['Light Aqua', '#8BD3D0'],
+  mint: ['Fresh Mint', '#A5D5B5'],
+  butter: ['Butter Yellow', '#F3DC8C'],
+  rose: ['Rose', '#D98CA0'],
+  lavender: ['Lavender', '#B6A5D8'],
+  powder: ['Powder Blue', '#A9C6E8'],
+  periwinkle: ['Periwinkle', '#899ED1'],
+  sage: ['Sage', '#8FA88C'],
+  dustyTeal: ['Dusty Teal', '#5E9A96'],
+  mauve: ['Mauve', '#A97C8E'],
+  slate: ['Slate Blue', '#6E85A3'],
+  dustyRose: ['Dusty Rose', '#BA8B8B'],
+  eucalyptus: ['Eucalyptus', '#77958A'],
+  raspberry: ['Raspberry', '#B94D70'],
+  berry: ['Deep Berry', '#873C5A'],
+  plum: ['Plum', '#694565'],
+  teal: ['Deep Teal', '#1F5C56'],
+  forest: ['Forest', '#2F5D3A'],
+  olive: ['Olive', '#6B6B2E'],
+  rust: ['Rust', '#B5502A'],
+  terracotta: ['Terracotta', '#C1653C'],
+  mustard: ['Mustard', '#C99A2E'],
+  gold: ['Golden Yellow', '#F2C14E'],
+  tomato: ['Tomato Red', '#E8543E'],
+  grass: ['Leaf Green', '#6BA84F'],
+  turquoise: ['Turquoise', '#2FB7A5'],
+  emerald: ['Emerald', '#008B6D'],
+  cobalt: ['Cobalt', '#2855BC'],
+  royal: ['Royal Blue', '#354CC0'],
+  fuchsia: ['Fuchsia', '#D33389'],
+  violet: ['Violet', '#784CB0'],
+  ruby: ['Ruby', '#B82746'],
+  burgundy: ['Burgundy', '#612C40'],
+  iceBlue: ['Ice Blue', '#D5EAF3'],
+  icePink: ['Ice Pink', '#F4DCE9'],
+} as const satisfies Record<string, Colour>
+
+function swatch(colour: Colour, description: string): ColorSwatchData {
+  return { name: colour[0], hex: colour[1], description }
 }
 
-const SPRING: ColorPalette = {
-  best: [
-    sw('Coral', '#FF6F59', 'A bright, warm pink-orange that mirrors a warm, glowing skin tone.'),
-    sw('Warm Peach', '#FFB48A', 'Soft and warm — flattering close to the face without overpowering it.'),
-    sw('Golden Yellow', '#F2C14E', 'A clear, sunny yellow that tends to suit warm, lighter colouring well.'),
-    sw('Grass Green', '#6BA84F', 'Fresh and warm-leaning, good for adding energy without going cool.'),
-    sw('Turquoise', '#2FB7A5', 'A warm-leaning blue-green that reads as vivid rather than icy.'),
-    sw('Tomato Red', '#E8543E', 'A warm, juicy red — livelier than a blue-based red.'),
-    sw('Periwinkle Blue', '#6C8EDB', 'A softened blue with warmth in it, easier to wear than a true cool blue.'),
-    sw('Light Violet', '#9B87D6', 'A warm-leaning purple that keeps some brightness.'),
-  ],
-  neutrals: [
-    sw('Camel', '#C69C6D', 'A warm tan that works as an easy base for almost any outfit.'),
-    sw('Warm Ivory', '#F6F1E4', 'A softer alternative to stark white for warm colouring.'),
-    sw('Golden Beige', '#D9C7A3', 'A warm neutral that pairs easily with the brighter colours above.'),
-    sw('Warm Taupe', '#A38B6D', 'A muted, warm mid-tone that is easy to build around.'),
-  ],
-  useCarefully: [
-    sw('Jet Black', '#1A1A1A', 'Can look harsh against lighter, warmer colouring — a soft charcoal often reads better.'),
-    sw('Icy Blue', '#CDE7F0', 'A cool, frosted pastel that may sit at odds with a warm undertone.'),
-    sw('Pure White', '#FFFFFF', 'Can look stark; an ivory or cream may create less harsh contrast.'),
-    sw('Deep Burgundy', '#5C1F2E', 'A cool, very deep wine tone that can overwhelm lighter, warmer colouring.'),
-  ],
-  wardrobe: {
-    tshirts: [sw('Coral', '#FF6F59', ''), sw('Golden Yellow', '#F2C14E', ''), sw('Turquoise', '#2FB7A5', ''), sw('Warm Ivory', '#F6F1E4', '')],
-    dressShirts: [sw('Warm Ivory', '#F6F1E4', ''), sw('Periwinkle Blue', '#6C8EDB', ''), sw('Light Violet', '#9B87D6', ''), sw('Camel', '#C69C6D', '')],
-    hoodiesSweaters: [sw('Grass Green', '#6BA84F', ''), sw('Camel', '#C69C6D', ''), sw('Tomato Red', '#E8543E', ''), sw('Golden Beige', '#D9C7A3', '')],
-    jackets: [sw('Camel', '#C69C6D', ''), sw('Warm Taupe', '#A38B6D', ''), sw('Tomato Red', '#E8543E', ''), sw('Golden Beige', '#D9C7A3', '')],
-    pants: [sw('Camel', '#C69C6D', ''), sw('Warm Taupe', '#A38B6D', ''), sw('Golden Beige', '#D9C7A3', ''), sw('Warm Ivory', '#F6F1E4', '')],
-    accessories: [sw('Golden Yellow', '#F2C14E', 'Gold-toned metals tend to suit warm colouring better than silver.'), sw('Turquoise', '#2FB7A5', ''), sw('Coral', '#FF6F59', ''), sw('Camel', '#C69C6D', '')],
-  },
-  staples: [
-    sw('Navy', '#2E3A5C', 'A warm-leaning navy rather than a stark, cool one.'),
-    sw('Grey', '#9C9284', 'A warm "greige" reads better than a cool, flat grey.'),
-    sw('White', '#FAF6EC', 'A soft, warm white instead of a stark cool white.'),
-    sw('Black', '#2B2725', 'A softened near-black is usually easier to wear than true black.'),
-    sw('Brown', '#7A4A2B', 'A warm chestnut brown.'),
-    sw('Beige', '#D9C7A3', 'A warm, golden beige.'),
-  ],
+export function assemblePalette(best: ColorSwatchData[], neutrals: ColorSwatchData[], useCarefully: ColorSwatchData[] = []): ColorPalette {
+  const choose = (preferred: ColorSwatchData[]) =>
+    [...new Map([...preferred, ...best, ...neutrals].map(c => [c.hex, c])).values()].slice(0, 4)
+  return {
+    best, neutrals, useCarefully,
+    wardrobe: {
+      tshirts: choose([...best.slice(0, 3), ...neutrals.slice(0, 1)]),
+      dressShirts: choose([...neutrals.slice(0, 2), ...best.slice(1, 3)]),
+      hoodiesSweaters: choose([...best.slice(2, 4), ...neutrals.slice(1, 3)]),
+      jackets: choose([...neutrals.slice(1, 4), ...best.slice(3, 4)]),
+      pants: choose(neutrals),
+      accessories: choose(best),
+    },
+    staples: neutrals.length ? neutrals : best.slice(0, 3),
+  }
 }
 
-const SUMMER: ColorPalette = {
-  best: [
-    sw('Powder Blue', '#A9C6E8', 'A soft, cool blue that echoes a gentle, cool colouring.'),
-    sw('Soft Lavender', '#B6A5D8', 'Muted and cool — gentle rather than bold.'),
-    sw('Rose Pink', '#D98CA0', 'A cool-leaning pink with a soft, blended feel.'),
-    sw('Sage Green', '#8FA88C', 'A quiet, greyed-down green.'),
-    sw('Slate Blue', '#6E85B7', 'A muted mid-blue, easy to wear close to the face.'),
-    sw('Soft Raspberry', '#C15C74', 'A cool berry tone with some depth, without being harsh.'),
-    sw('Dusty Teal', '#5E9A96', 'A softened teal that stays cool rather than tropical-bright.'),
-    sw('Mauve', '#A97C8E', 'A dusty, cool pink-purple that suits low-to-medium contrast well.'),
-  ],
-  neutrals: [
-    sw('Soft Grey', '#ACACA6', 'A gentle, cool-leaning grey.'),
-    sw('Dove Grey', '#C6C6C0', 'Lighter and softer than a flat neutral grey.'),
-    sw('Chalk White', '#F1F0EA', 'A muted white, softer than a stark, bright white.'),
-    sw('Soft Navy', '#38455E', 'A muted navy rather than a jet-black or bright royal blue.'),
-  ],
-  useCarefully: [
-    sw('Bright Orange', '#E8622A', 'A warm, saturated colour that can feel at odds with cooler, softer colouring.'),
-    sw('Jet Black', '#0D0D0D', 'Can read as harsher than the soft contrast this colouring tends to have.'),
-    sw('Golden Yellow', '#F2C14E', 'A warm, high-energy yellow that may compete with a cool undertone.'),
-    sw('Bright Tomato Red', '#E8543E', 'A very warm, vivid red that can overpower softer colouring.'),
-  ],
-  wardrobe: {
-    tshirts: [sw('Powder Blue', '#A9C6E8', ''), sw('Rose Pink', '#D98CA0', ''), sw('Sage Green', '#8FA88C', ''), sw('Chalk White', '#F1F0EA', '')],
-    dressShirts: [sw('Chalk White', '#F1F0EA', ''), sw('Powder Blue', '#A9C6E8', ''), sw('Soft Lavender', '#B6A5D8', ''), sw('Dove Grey', '#C6C6C0', '')],
-    hoodiesSweaters: [sw('Mauve', '#A97C8E', ''), sw('Dusty Teal', '#5E9A96', ''), sw('Soft Navy', '#38455E', ''), sw('Dove Grey', '#C6C6C0', '')],
-    jackets: [sw('Soft Navy', '#38455E', ''), sw('Slate Blue', '#6E85B7', ''), sw('Dove Grey', '#C6C6C0', ''), sw('Mauve', '#A97C8E', '')],
-    pants: [sw('Soft Navy', '#38455E', ''), sw('Dove Grey', '#C6C6C0', ''), sw('Soft Grey', '#ACACA6', ''), sw('Chalk White', '#F1F0EA', '')],
-    accessories: [sw('Soft Lavender', '#B6A5D8', 'Silver-toned metals tend to suit cool colouring better than gold.'), sw('Slate Blue', '#6E85B7', ''), sw('Mauve', '#A97C8E', ''), sw('Dusty Teal', '#5E9A96', '')],
-  },
-  staples: [
-    sw('Navy', '#35415A', 'A soft, cool navy.'),
-    sw('Grey', '#ACACA6', 'A cool dove grey.'),
-    sw('White', '#F1F0EA', 'A soft chalk white rather than a stark one.'),
-    sw('Black', '#2B2B2D', 'A soft charcoal reads gentler than true black.'),
-    sw('Brown', '#7A6A5D', 'A cool, taupe-leaning brown.'),
-    sw('Beige', '#C8BFAE', 'A cool, putty-toned beige.'),
-  ],
+function palette(best: Colour[], neutrals: Colour[], approach: string, caution: Colour[]): ColorPalette {
+  return assemblePalette(
+    best.map(c => swatch(c, approach)),
+    neutrals.map(c => swatch(c, 'An everyday foundation for this palette.')),
+    caution.map(c => swatch(c, 'Creates a stronger contrast with this palette. Try as an accent if you enjoy it.')),
+  )
 }
 
-const AUTUMN: ColorPalette = {
-  best: [
-    sw('Rust', '#B5502A', 'An earthy, warm orange-red that suits deeper warm colouring.'),
-    sw('Olive Green', '#6B6B2E', 'A muted, warm green with an earthy pull.'),
-    sw('Mustard', '#C99A2E', 'A rich, warm yellow rather than a bright lemon.'),
-    sw('Terracotta', '#C1653C', 'A warm clay tone, easy to wear head-to-toe.'),
-    sw('Forest Green', '#2F5D3A', 'A deep, warm-leaning green.'),
-    sw('Deep Teal', '#1F5C56', 'A rich blue-green with warmth in its depth.'),
-    sw('Chocolate Brown', '#5A3A22', 'A warm, deep brown that works like a second neutral.'),
-    sw('Brick Red', '#9C3B2E', 'A muted, earthy red rather than a sharp true red.'),
-  ],
-  neutrals: [
-    sw('Camel', '#B8895D', 'A rich, warm tan.'),
-    sw('Warm Khaki', '#A69066', 'An earthy green-brown neutral.'),
-    sw('Cream', '#EFE3C8', 'A warm off-white, easier to wear than stark white.'),
-    sw('Chestnut Brown', '#6E4A32', 'A deep, warm brown that can stand in for black.'),
-  ],
-  useCarefully: [
-    sw('Icy Pastel Pink', '#F3D6DE', 'A cool, frosted pastel that can look washed out against warm, deeper colouring.'),
-    sw('Stark White', '#FFFFFF', 'Can look overly stark; a cream or ivory tends to sit more naturally.'),
-    sw('Cool Fuchsia', '#D6368F', 'A cool, high-shock pink that can clash with a warm undertone.'),
-    sw('Silver Grey', '#C7C7C7', 'A cool, flat grey that can look dull against warmer colouring.'),
-  ],
-  wardrobe: {
-    tshirts: [sw('Mustard', '#C99A2E', ''), sw('Terracotta', '#C1653C', ''), sw('Olive Green', '#6B6B2E', ''), sw('Cream', '#EFE3C8', '')],
-    dressShirts: [sw('Cream', '#EFE3C8', ''), sw('Camel', '#B8895D', ''), sw('Warm Khaki', '#A69066', ''), sw('Rust', '#B5502A', '')],
-    hoodiesSweaters: [sw('Forest Green', '#2F5D3A', ''), sw('Chocolate Brown', '#5A3A22', ''), sw('Rust', '#B5502A', ''), sw('Deep Teal', '#1F5C56', '')],
-    jackets: [sw('Chestnut Brown', '#6E4A32', ''), sw('Chocolate Brown', '#5A3A22', ''), sw('Forest Green', '#2F5D3A', ''), sw('Camel', '#B8895D', '')],
-    pants: [sw('Chestnut Brown', '#6E4A32', ''), sw('Warm Khaki', '#A69066', ''), sw('Chocolate Brown', '#5A3A22', ''), sw('Olive Green', '#6B6B2E', '')],
-    accessories: [sw('Mustard', '#C99A2E', 'Gold and bronze-toned metals tend to suit warm colouring better than silver.'), sw('Rust', '#B5502A', ''), sw('Deep Teal', '#1F5C56', ''), sw('Camel', '#B8895D', '')],
-  },
-  staples: [
-    sw('Navy', '#2E3B4E', 'A muted, slightly warm navy.'),
-    sw('Grey', '#8F8574', 'A warm "greige" rather than a cool flat grey.'),
-    sw('White', '#F2E9D8', 'A warm ivory instead of a stark white.'),
-    sw('Black', '#2A211A', 'A soft warm near-black; chocolate brown can also stand in for black.'),
-    sw('Brown', '#6E4A32', 'A rich chestnut brown.'),
-    sw('Beige', '#C7A97B', 'A warm camel-beige.'),
-  ],
+export const SEASON_PALETTES: Record<ShadowSeasonId, ColorPalette> = {
+  'light-spring': palette(
+    [C.peach, C.apricot, C.aqua, C.mint, C.butter, C.coral, C.periwinkle, C.rose],
+    [C.ivory, C.stone, C.camel, C.taupe], 'Light, fresh colour with a gentle warm lean.', [C.black, C.burgundy]),
+  'warm-spring': palette(
+    [C.coral, C.apricot, C.gold, C.grass, C.turquoise, C.tomato, C.peach, C.mint],
+    [C.ivory, C.camel, C.taupe, C.chocolate], 'Warm, lively colour with a clear finish.', [C.iceBlue, C.mauve]),
+  'bright-spring': palette(
+    [C.coral, C.turquoise, C.emerald, C.cobalt, C.fuchsia, C.gold, C.tomato, C.violet],
+    [C.ivory, C.navy, C.charcoal, C.stone], 'Clear, vivid colour with warmth and definition.', [C.taupe, C.dustyRose]),
+  'light-summer': palette(
+    [C.powder, C.lavender, C.rose, C.aqua, C.periwinkle, C.mint, C.sage, C.dustyRose],
+    [C.pearl, C.silver, C.stone, C.navy], 'Airy colour with soft, cool undertones.', [C.black, C.rust]),
+  'cool-summer': palette(
+    [C.rose, C.lavender, C.periwinkle, C.raspberry, C.slate, C.mauve, C.dustyTeal, C.berry],
+    [C.pearl, C.silver, C.navy, C.charcoal], 'Cool colour with softly blended depth.', [C.tomato, C.mustard]),
+  'soft-summer': palette(
+    [C.sage, C.dustyTeal, C.mauve, C.slate, C.dustyRose, C.eucalyptus, C.lavender, C.berry],
+    [C.pearl, C.stone, C.taupe, C.navy], 'Soft, greyed colour with a gentle cool lean.', [C.tomato, C.cobalt]),
+  'soft-autumn': palette(
+    [C.sage, C.dustyTeal, C.mauve, C.dustyRose, C.eucalyptus, C.terracotta, C.olive, C.apricot],
+    [C.ivory, C.stone, C.taupe, C.navy], 'Muted, earthy colour with a gentle warm lean.', [C.fuchsia, C.iceBlue]),
+  'warm-autumn': palette(
+    [C.rust, C.olive, C.mustard, C.terracotta, C.forest, C.teal, C.gold, C.tomato],
+    [C.ivory, C.camel, C.chocolate, C.taupe], 'Golden, earthy colour with warm richness.', [C.icePink, C.cobalt]),
+  'deep-autumn': palette(
+    [C.forest, C.teal, C.olive, C.rust, C.burgundy, C.terracotta, C.berry, C.mustard],
+    [C.espresso, C.chocolate, C.navy, C.camel], 'Rich, deep colour with warm earthy accents.', [C.powder, C.icePink]),
+  'deep-winter': palette(
+    [C.burgundy, C.berry, C.plum, C.teal, C.emerald, C.ruby, C.cobalt, C.violet],
+    [C.black, C.charcoal, C.navy, C.white], 'Deep, cool colour with clear definition.', [C.apricot, C.camel]),
+  'cool-winter': palette(
+    [C.ruby, C.fuchsia, C.royal, C.cobalt, C.violet, C.plum, C.iceBlue, C.icePink],
+    [C.white, C.black, C.charcoal, C.silver], 'Cool, crisp colour with pronounced contrast.', [C.rust, C.gold]),
+  'bright-winter': palette(
+    [C.fuchsia, C.cobalt, C.emerald, C.violet, C.ruby, C.turquoise, C.iceBlue, C.icePink],
+    [C.white, C.black, C.charcoal, C.navy], 'Clear, saturated colour with cool brilliance.', [C.taupe, C.terracotta]),
 }
 
-const WINTER: ColorPalette = {
-  best: [
-    sw('True Red', '#C8102E', 'A clear, blue-based red that suits bold, cool colouring.'),
-    sw('Emerald Green', '#009B77', 'A vivid, cool-leaning green.'),
-    sw('Royal Blue', '#1E3A8A', 'A saturated, clear blue with real presence.'),
-    sw('Fuchsia', '#C6247A', 'A bold cool pink that can carry high contrast well.'),
-    sw('Icy Blue', '#A9D4E8', 'A crisp, cool pastel — one of the few pastels that tends to suit this colouring.'),
-    sw('Deep Purple', '#4B2E83', 'A rich, cool purple.'),
-    sw('Hot Pink', '#E0447B', 'A bright, clear pink rather than a muted or dusty one.'),
-    sw('Bright Teal', '#0E8C82', 'A clear, saturated blue-green.'),
-  ],
-  neutrals: [
-    sw('Pure White', '#FFFFFF', 'A crisp white tends to suit higher-contrast, cooler colouring well.'),
-    sw('True Black', '#0A0A0A', 'A genuine black, rather than a softened charcoal.'),
-    sw('Charcoal Grey', '#3A3A3C', 'A deep, cool grey.'),
-    sw('Icy Grey', '#C7CDD1', 'A cool, pale grey with a slightly blue cast.'),
-  ],
-  useCarefully: [
-    sw('Burnt Orange', '#C1622A', 'A warm, muted tone that can look dull against bold, cool colouring.'),
-    sw('Mustard Yellow', '#C99A2E', 'A warm, earthy yellow that may look muddy rather than crisp on this colouring.'),
-    sw('Warm Beige', '#C7A97B', 'Can look flat against higher contrast; a cooler grey often works better.'),
-    sw('Peach', '#F2B98A', 'A soft warm tone that may look washed out against bold, cool colouring.'),
-  ],
-  wardrobe: {
-    tshirts: [sw('Icy Blue', '#A9D4E8', ''), sw('Fuchsia', '#C6247A', ''), sw('Emerald Green', '#009B77', ''), sw('Pure White', '#FFFFFF', '')],
-    dressShirts: [sw('Pure White', '#FFFFFF', ''), sw('Icy Blue', '#A9D4E8', ''), sw('Icy Grey', '#C7CDD1', ''), sw('Royal Blue', '#1E3A8A', '')],
-    hoodiesSweaters: [sw('True Red', '#C8102E', ''), sw('Deep Purple', '#4B2E83', ''), sw('Charcoal Grey', '#3A3A3C', ''), sw('Emerald Green', '#009B77', '')],
-    jackets: [sw('True Black', '#0A0A0A', ''), sw('Charcoal Grey', '#3A3A3C', ''), sw('Royal Blue', '#1E3A8A', ''), sw('Deep Purple', '#4B2E83', '')],
-    pants: [sw('True Black', '#0A0A0A', ''), sw('Charcoal Grey', '#3A3A3C', ''), sw('Icy Grey', '#C7CDD1', ''), sw('Royal Blue', '#1E3A8A', '')],
-    accessories: [sw('True Red', '#C8102E', 'Silver, white gold, and platinum-toned metals tend to suit cool colouring better than gold.'), sw('Fuchsia', '#C6247A', ''), sw('Bright Teal', '#0E8C82', ''), sw('True Black', '#0A0A0A', '')],
-  },
-  staples: [
-    sw('Navy', '#1B2A4A', 'A deep, true navy.'),
-    sw('Grey', '#3A3A3C', 'A cool charcoal grey.'),
-    sw('White', '#FFFFFF', 'A bright, pure white.'),
-    sw('Black', '#0A0A0A', 'A true black — one of the few colouring types that wears this easily.'),
-    sw('Brown', '#4A362B', 'A cool, espresso-leaning brown, used sparingly.'),
-    sw('Beige', '#B8AFA3', 'A cool, muted taupe-beige, used sparingly.'),
-  ],
-}
-
-const SEASON_PALETTES: Record<Season, ColorPalette> = {
-  spring: SPRING,
-  summer: SUMMER,
-  autumn: AUTUMN,
-  winter: WINTER,
-}
-
-// The palette is chosen from the profile's primary season. This is a
-// deliberate V1 simplification — the palette varies with the user's
-// detected colouring, but not with their exact hair/eye colour within a
-// season. A natural next step (left for later) would be to blend in a few
-// colours from `profile.secondarySeason` when one is present.
-export function generatePalette(profile: ColorProfile): ColorPalette {
-  return SEASON_PALETTES[profile.season]
+/** Exact intersection across ALL candidates. Never pad it with one season's colours. */
+export function sharedSeasonPalette(ids: ShadowSeasonId[]): ColorPalette {
+  if (!ids.length) return assemblePalette([], [])
+  const palettes = [...new Set(ids)].map(id => SEASON_PALETTES[id])
+  const shared = (key: 'best' | 'neutrals') => palettes[0][key]
+    .filter(colour => palettes.every(p => p[key].some(c => c.hex === colour.hex)))
+    .map(colour => ({ ...colour, description: 'Included in every palette in your current season group.' }))
+    .sort((a, b) => a.name.localeCompare(b.name))
+  return assemblePalette(shared('best'), shared('neutrals'))
 }

@@ -30,6 +30,18 @@ export interface IrisSampleRegion {
   outerRadiusY: number
 }
 
+export type SkinRegionName = 'forehead' | 'leftCheek' | 'rightCheek'
+
+export interface NormalizedPolygon {
+  points: { x: number; y: number }[]
+}
+
+export interface SkinSamplingRegion {
+  name: SkinRegionName
+  polygon: NormalizedPolygon
+  exclusions: NormalizedPolygon[]
+}
+
 export interface FaceRegions {
   /** The detected face's own bounding box, in normalized [0,1] image coordinates. */
   faceBox: NormalizedRect
@@ -39,6 +51,8 @@ export interface FaceRegions {
   hairSearchArea: NormalizedRect
   leftIris: IrisSampleRegion
   rightIris: IrisSampleRegion
+  /** Landmark-defined skin polygons used only by the shadow measurement path. */
+  skinSamplingRegions: SkinSamplingRegion[]
   /** Face bounding-box area as a fraction of the whole photo — used for confidence. */
   faceAreaRatio: number
 }
@@ -70,6 +84,46 @@ function clampRect(rect: NormalizedRect): NormalizedRect {
     xEnd: clamp01(rect.xEnd),
     yStart: clamp01(rect.yStart),
     yEnd: clamp01(rect.yEnd),
+  }
+}
+
+function polygonFromIndices(points: { x: number; y: number }[], indices: number[]): NormalizedPolygon {
+  return {
+    points: indices.map((index) => ({ x: clamp01(points[index].x), y: clamp01(points[index].y) })),
+  }
+}
+
+function insetPolygon(polygon: NormalizedPolygon, fraction: number): NormalizedPolygon {
+  const center = {
+    x: polygon.points.reduce((sum, point) => sum + point.x, 0) / polygon.points.length,
+    y: polygon.points.reduce((sum, point) => sum + point.y, 0) / polygon.points.length,
+  }
+  return {
+    points: polygon.points.map((point) => ({
+      x: center.x + (point.x - center.x) * (1 - fraction),
+      y: center.y + (point.y - center.y) * (1 - fraction),
+    })),
+  }
+}
+
+function paddedLandmarkBounds(
+  points: { x: number; y: number }[],
+  indices: number[],
+  paddingX: number,
+  paddingY: number,
+): NormalizedPolygon {
+  const selected = indices.map((index) => points[index])
+  const xMin = Math.min(...selected.map((point) => point.x)) - paddingX
+  const xMax = Math.max(...selected.map((point) => point.x)) + paddingX
+  const yMin = Math.min(...selected.map((point) => point.y)) - paddingY
+  const yMax = Math.max(...selected.map((point) => point.y)) + paddingY
+  return {
+    points: [
+      { x: clamp01(xMin), y: clamp01(yMin) },
+      { x: clamp01(xMax), y: clamp01(yMin) },
+      { x: clamp01(xMax), y: clamp01(yMax) },
+      { x: clamp01(xMin), y: clamp01(yMax) },
+    ],
   }
 }
 
@@ -159,6 +213,58 @@ export async function detectFaceRegions(image: HTMLImageElement | HTMLVideoEleme
   const leftIris = irisSampleRegion(points, LEFT_IRIS_CENTER, LEFT_IRIS_RING)
   const rightIris = irisSampleRegion(points, RIGHT_IRIS_CENTER, RIGHT_IRIS_RING)
 
+  // These polygons follow stable face-mesh landmarks rather than sampling
+  // every pixel in a rectangular slice. They deliberately target central
+  // forehead and upper/outer cheek areas, away from the mouth, nose and jaw.
+  // A small inset avoids the hairline, eyelids and polygon boundary errors.
+  const foreheadPolygon = insetPolygon(
+    polygonFromIndices(points, [103, 67, 109, 10, 338, 297, 332, 285, 9, 55]),
+    0.12,
+  )
+  const leftCheekPolygon = insetPolygon(
+    polygonFromIndices(points, [116, 50, 101, 205, 187, 123]),
+    0.1,
+  )
+  const rightCheekPolygon = insetPolygon(
+    polygonFromIndices(points, [345, 280, 330, 425, 411, 352]),
+    0.1,
+  )
+
+  const featurePaddingX = faceWidth * 0.025
+  const featurePaddingY = faceHeight * 0.018
+  const featureExclusions = [
+    // Left/right eye and eyebrow complexes.
+    paddedLandmarkBounds(points, [33, 133, 159, 145, 70, 63, 105, 66, 107], featurePaddingX, featurePaddingY),
+    paddedLandmarkBounds(points, [362, 263, 386, 374, 336, 296, 334, 293, 300], featurePaddingX, featurePaddingY),
+    // Nose/nostrils and the complete outer mouth/lip area.
+    paddedLandmarkBounds(points, [1, 2, 4, 5, 97, 98, 326, 327], featurePaddingX, featurePaddingY),
+    paddedLandmarkBounds(points, [61, 291, 0, 17, 13, 14, 78, 308], featurePaddingX, featurePaddingY),
+    // Hairline and lower face/beard zones are excluded even if a landmark
+    // polygon clips their boundary on an unusual pose.
+    {
+      points: [
+        { x: clamp01(xMin - faceWidth * 0.05), y: clamp01(yMin - faceHeight * 0.02) },
+        { x: clamp01(xMax + faceWidth * 0.05), y: clamp01(yMin - faceHeight * 0.02) },
+        { x: clamp01(xMax + faceWidth * 0.05), y: clamp01(yMin + faceHeight * 0.075) },
+        { x: clamp01(xMin - faceWidth * 0.05), y: clamp01(yMin + faceHeight * 0.075) },
+      ],
+    },
+    {
+      points: [
+        { x: clamp01(xMin), y: clamp01(yMin + faceHeight * 0.7) },
+        { x: clamp01(xMax), y: clamp01(yMin + faceHeight * 0.7) },
+        { x: clamp01(xMax), y: clamp01(yMax) },
+        { x: clamp01(xMin), y: clamp01(yMax) },
+      ],
+    },
+  ]
+
+  const skinSamplingRegions: SkinSamplingRegion[] = [
+    { name: 'forehead', polygon: foreheadPolygon, exclusions: featureExclusions },
+    { name: 'leftCheek', polygon: leftCheekPolygon, exclusions: featureExclusions },
+    { name: 'rightCheek', polygon: rightCheekPolygon, exclusions: featureExclusions },
+  ]
+
   return {
     faceBox: clampRect({ xStart: xMin, xEnd: xMax, yStart: yMin, yEnd: yMax }),
     forehead,
@@ -167,6 +273,7 @@ export async function detectFaceRegions(image: HTMLImageElement | HTMLVideoEleme
     hairSearchArea,
     leftIris,
     rightIris,
+    skinSamplingRegions,
     faceAreaRatio: faceWidth * faceHeight,
   }
 }

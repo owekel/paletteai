@@ -15,6 +15,7 @@ import { isValidHex } from '../services/colorUtils'
 interface ColorTryOnProps {
   imageDataUrl: string
   palette: ColorPalette
+  recommendationLabel?: string
 }
 
 type SessionStatus = 'loading' | 'ready' | 'no-clothing' | 'error'
@@ -51,33 +52,41 @@ function CheckIcon({ dark }: { dark: boolean }) {
   )
 }
 
-export default function ColorTryOn({ imageDataUrl, palette }: ColorTryOnProps) {
+export default function ColorTryOn({ imageDataUrl, palette, recommendationLabel = 'Recommended for you' }: ColorTryOnProps) {
   const [status, setStatus] = useState<SessionStatus>('loading')
   const [selectedHex, setSelectedHex] = useState<string | null>(null)
   const [customHex, setCustomHex] = useState(DEFAULT_CUSTOM_HEX)
   const [recoloredDataUrl, setRecoloredDataUrl] = useState<string | null>(null)
   const [isApplying, setIsApplying] = useState(false)
+  const [applyError, setApplyError] = useState<string | null>(null)
   const [view, setView] = useState<'before' | 'after'>('after')
 
   const sessionRef = useRef<ClothingRecolorSession | null>(null)
+  const applicationTimerRef = useRef<number | null>(null)
 
   // The same recommended colours already shown in "Your Palette" above —
   // no second colour system.
   const swatchOptions = [...palette.best, ...palette.neutrals]
 
   function applyColor(hex: string) {
+    if (applicationTimerRef.current !== null) window.clearTimeout(applicationTimerRef.current)
     setSelectedHex(hex)
     setCustomHex(hex)
     setView('after')
     setIsApplying(true)
+    setApplyError(null)
     // Deferred one tick so the "Applying colour…" state has a chance to
     // paint before the (synchronous) pixel processing runs.
-    window.setTimeout(() => {
+    applicationTimerRef.current = window.setTimeout(() => {
       const session = sessionRef.current
-      if (session) {
-        setRecoloredDataUrl(applyClothingColor(session, hex))
+      try {
+        if (session) setRecoloredDataUrl(applyClothingColor(session, hex))
+      } catch {
+        setApplyError('This shade could not be previewed. Please try another colour.')
+      } finally {
+        applicationTimerRef.current = null
+        setIsApplying(false)
       }
-      setIsApplying(false)
     }, 0)
   }
 
@@ -86,6 +95,10 @@ export default function ColorTryOn({ imageDataUrl, palette }: ColorTryOnProps) {
     setStatus('loading')
     setRecoloredDataUrl(null)
     setSelectedHex(null)
+    setIsApplying(false)
+    setApplyError(null)
+    setView('after')
+    setCustomHex(DEFAULT_CUSTOM_HEX)
     sessionRef.current = null
 
     prepareClothingRecolorSession(imageDataUrl)
@@ -107,6 +120,9 @@ export default function ColorTryOn({ imageDataUrl, palette }: ColorTryOnProps) {
 
     return () => {
       cancelled = true
+      if (applicationTimerRef.current !== null) window.clearTimeout(applicationTimerRef.current)
+      applicationTimerRef.current = null
+      sessionRef.current = null
     }
     // Only the photo itself should restart this — palette/swatchOptions
     // are effectively static for the lifetime of a results page.
@@ -114,7 +130,9 @@ export default function ColorTryOn({ imageDataUrl, palette }: ColorTryOnProps) {
 
   function handleCustomHexCommit() {
     const normalized = normalizeHex(customHex)
-    if (isValidHex(normalized)) applyColor(normalized)
+    if (isValidHex(normalized) && normalized.toLowerCase() !== selectedHex?.toLowerCase()) {
+      applyColor(normalized)
+    }
   }
 
   const customHexForPicker = isValidHex(normalizeHex(customHex)) ? normalizeHex(customHex) : DEFAULT_CUSTOM_HEX
@@ -131,10 +149,9 @@ export default function ColorTryOn({ imageDataUrl, palette }: ColorTryOnProps) {
 
   return (
     <div>
-      <h2 className="font-display text-2xl text-ink">Try On Your Colours</h2>
+      <h2 className="font-display text-3xl text-ink sm:text-4xl">See yourself in colour</h2>
       <p className="mt-1 max-w-lg text-sm leading-relaxed text-ink-soft">
-        Preview a recommended (or any) colour on your own photo. Shading, folds, and texture stay
-        the same — only the colour changes.
+        Preview these shades or choose your own. The preview follows your clothing’s shading and texture.
       </p>
 
       {status === 'loading' && <p className="mt-8 text-sm text-ink-soft">Finding the clothing in your photo…</p>}
@@ -148,13 +165,14 @@ export default function ColorTryOn({ imageDataUrl, palette }: ColorTryOnProps) {
 
       {status === 'no-clothing' && (
         <p className="mt-8 max-w-lg text-sm text-ink-soft">
-          We couldn't find a clear clothing area to recolour in this photo — this usually happens
-          with a close, face-only crop. Try again with a photo that shows some of your top.
+          We couldn't find a clear clothing area to recolour in this photo. Your colour analysis is still available.
+          To use the preview, choose a photo that includes some of your top.
         </p>
       )}
 
       {status === 'ready' && (
         <div className="mt-8">
+          {applyError && <p role="alert" className="mb-4 text-sm text-accent">{applyError}</p>}
           {/* Photo hero */}
           <div className="mx-auto max-w-md">
             <div className="relative aspect-[3/4] overflow-hidden rounded-xl bg-surface shadow-[0_24px_60px_-24px_rgba(28,26,23,0.4)]">
@@ -179,6 +197,7 @@ export default function ColorTryOn({ imageDataUrl, palette }: ColorTryOnProps) {
               <div className="absolute left-1/2 top-4 flex -translate-x-1/2 gap-0.5 rounded-full border border-ink/10 bg-paper/90 p-1 shadow-sm backdrop-blur-sm">
                 <button
                   onClick={() => setView('before')}
+                  aria-pressed={view === 'before'}
                   className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors duration-200 ${
                     view === 'before' ? 'bg-ink text-paper' : 'text-ink-soft hover:text-ink'
                   }`}
@@ -187,6 +206,7 @@ export default function ColorTryOn({ imageDataUrl, palette }: ColorTryOnProps) {
                 </button>
                 <button
                   onClick={() => setView('after')}
+                  aria-pressed={view === 'after'}
                   disabled={!recoloredDataUrl}
                   className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${
                     view === 'after' ? 'bg-ink text-paper' : 'text-ink-soft hover:text-ink'
@@ -198,6 +218,7 @@ export default function ColorTryOn({ imageDataUrl, palette }: ColorTryOnProps) {
 
               {/* Applying-colour overlay */}
               <div
+                aria-hidden={!isApplying}
                 className={`absolute inset-0 flex items-center justify-center bg-ink/20 backdrop-blur-[1px] transition-opacity duration-200 ${
                   isApplying ? 'opacity-100' : 'pointer-events-none opacity-0'
                 }`}
@@ -213,7 +234,7 @@ export default function ColorTryOn({ imageDataUrl, palette }: ColorTryOnProps) {
           {/* Colour selection */}
           <div className="mx-auto mt-10 max-w-2xl">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-              <h3 className="font-display text-lg text-ink">Recommended for You</h3>
+              <h3 className="font-display text-lg text-ink">{recommendationLabel}</h3>
               {selectedLabel && (
                 <div className="flex items-center gap-2 text-sm">
                   <span
@@ -269,6 +290,7 @@ export default function ColorTryOn({ imageDataUrl, palette }: ColorTryOnProps) {
                     if (event.key === 'Enter') handleCustomHexCommit()
                   }}
                   placeholder={DEFAULT_CUSTOM_HEX}
+                  aria-label="Custom colour hex code"
                   className="w-32 rounded-lg border border-hairline bg-surface px-3 py-2.5 font-mono text-sm uppercase text-ink transition-colors focus:border-ink focus:outline-none"
                   maxLength={7}
                 />

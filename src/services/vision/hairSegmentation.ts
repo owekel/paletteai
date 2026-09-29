@@ -7,6 +7,7 @@
 import { getHairSegmenter } from './loadVisionModels'
 
 // Category indices as defined by the selfie_multiclass_256x256 model.
+export const BACKGROUND_CATEGORY = 0
 export const HAIR_CATEGORY = 1
 // This model already labels clothing as its own category — reused by the
 // colour try-on feature (see services/clothingRecolor.ts) rather than
@@ -44,15 +45,17 @@ export async function detectHairMask(image: HTMLImageElement): Promise<HairMask 
 // resolution, so lookups are done by relative position (0..1 of the image)
 // rather than assuming any particular pixel size.
 export function isHairAtRelativePosition(mask: HairMask, relativeX: number, relativeY: number): boolean {
+  return categoryAtRelativePosition(mask, relativeX, relativeY) === HAIR_CATEGORY
+}
+
+export function categoryAtRelativePosition(mask: HairMask, relativeX: number, relativeY: number): number {
   const mx = Math.min(mask.width - 1, Math.max(0, Math.floor(relativeX * mask.width)))
   const my = Math.min(mask.height - 1, Math.max(0, Math.floor(relativeY * mask.height)))
-  return mask.categories[my * mask.width + mx] === HAIR_CATEGORY
+  return mask.categories[my * mask.width + mx]
 }
 
 // Same lookup as isHairAtRelativePosition, checking the clothes category
 // instead — reuses the exact same mask data the segmenter already produced.
 export function isClothesAtRelativePosition(mask: HairMask, relativeX: number, relativeY: number): boolean {
-  const mx = Math.min(mask.width - 1, Math.max(0, Math.floor(relativeX * mask.width)))
-  const my = Math.min(mask.height - 1, Math.max(0, Math.floor(relativeY * mask.height)))
-  return mask.categories[my * mask.width + mx] === CLOTHES_CATEGORY
+  return categoryAtRelativePosition(mask, relativeX, relativeY) === CLOTHES_CATEGORY
 }
