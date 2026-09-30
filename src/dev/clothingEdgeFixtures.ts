@@ -2,6 +2,7 @@ import { hslToRgb, hexToRgb, rgbToHsl } from '../services/colorUtils'
 import { edgeToLinear, edgeToSrgb } from '../services/clothingEdgeMatte'
 
 export const EDGE_CASES = [
+  { name: 'Red → taupe/grey', original: '#BD2834', target: '#9C8C80' },
   { name: 'Red → pale cyan', original: '#BD2834', target: '#B8E5F1' },
   { name: 'Blue → coral', original: '#286EB6', target: '#FF6F59' },
   { name: 'White → black', original: '#EEEEEA', target: '#191B22' },
