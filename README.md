@@ -127,6 +127,38 @@ selection have been removed. No stored profiles or server API require a
 legacy classifier. Fixed-region fallback sampling remains for diagnostics;
 it cannot produce a consumer season result when face detection fails.
 
+## Clothing edge repair
+
+The interior percentile tone curve, saturation handling, segmentation model,
+mask resize lookup and initial feather are unchanged. A separate colour-matting
+repair acts within three photo pixels of the raw clothing boundary:
+
+- Sample clean local garment/exterior endpoints along short rays. Prefer
+  pairs on opposite sides, avoiding averages across unrelated backgrounds.
+- Estimate fractional garment coverage in encoded RGB and linear light;
+  allow bounded foreground shading variation. Reject poor fits, unrelated
+  colours and indistinguishable endpoints. A source matching the exterior's
+  colour direction (including skin shadows) remains untouched.
+- Recover an inset edge only when its source colour fits the garment and it
+  connects to a confirmed garment-side pixel. There is no blanket dilation
+  or additional blur. Ambiguous pixels keep the existing treatment.
+- Replace the old garment component with the target's existing fabric tone
+  transform. Preserve the exterior component and anti-aliased coverage.
+- Export lossless PNG: JPEG chroma subsampling can contaminate otherwise
+  correct boundaries and alter unchanged neck/background pixels. PNG results
+  consume more memory than JPEG but preserve the composited pixels.
+
+`src/services/clothingEdgeMatte.ts` contains the repair. Sessions cache its
+foreground components, so switching shades does not re-estimate the edge.
+The development-only `/?preview=recolor` shows before/after collar and
+shoulder zooms for red→cyan, blue→coral, white→black and black→white.
+It supports encoded/linear mixed-edge fixtures and a local test portrait
+with simulated source dye. Controlled coverage permits exact exterior and
+interior comparisons; the optional portrait is a visual integration test,
+not known segmentation ground truth. The normal app uses the actual photo.
+`npm test` also checks decontamination, fractional coverage, large-photo
+sampling, skin shadows and ambiguous endpoints.
+
 ## Manual regression checklist
 
 1. Upload a well-lit portrait that includes clothing. Check the result,

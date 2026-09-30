@@ -13,6 +13,7 @@
 
 import { detectHairMask, isClothesAtRelativePosition, type HairMask } from './vision/hairSegmentation'
 import { clamp, hexToRgb, hslToRgb, rgbToHsl, type RGB } from './colorUtils'
+import { refineGarmentEdge, replaceEdgeGarment } from './clothingEdgeMatte'
 
 export interface ClothingRecolorSession {
   imageWidth: number
@@ -26,6 +27,9 @@ export interface ClothingRecolorSession {
   // estimate, allowing applyClothingColor to replace the garment component
   // of a mixed edge pixel without tinting its background component.
   edgeBackground: Uint8ClampedArray
+  // Narrow-band foreground colour + blend-space tag. Optional for older
+  // prepared sessions; the interior fabric transform remains identical.
+  edgeForeground?: Uint8ClampedArray
   // Robust tonal landmarks from the original garment. Percentiles are used
   // instead of a plain average so a bright logo or deep fold cannot shift
   // the whole recolour and make the fabric look flat or posterized.
@@ -38,6 +42,7 @@ export interface ClothingRecolorSession {
 interface ClothingMaskResult {
   alpha: Uint8ClampedArray
   edgeBackground: Uint8ClampedArray
+  edgeForeground?: Uint8ClampedArray
   shadowLightness: number
   referenceLightness: number
   highlightLightness: number
@@ -75,11 +80,12 @@ function loadImage(dataUrl: string): Promise<HTMLImageElement> {
 // applyClothingColor. The raw per-pixel mask is blocky because it comes from
 // a lower-resolution model output, so a small blur and a contrast curve
 // produce a narrow, natural edge without the old-colour halo.
-function buildFeatheredAlphaMask(
+export function buildFeatheredAlphaMask(
   mask: HairMask,
   originalImageData: ImageData,
   width: number,
   height: number,
+  refineBoundary = true,
 ): ClothingMaskResult {
   const empty: ClothingMaskResult = {
     alpha: new Uint8ClampedArray(width * height),
@@ -279,7 +285,11 @@ function buildFeatheredAlphaMask(
     }
   }
 
-  return { alpha, edgeBackground, shadowLightness, referenceLightness, highlightLightness, hasClothing: true }
+  // The unrefined path is exposed only for the developer regression preview.
+  // Normal session preparation always uses the boundary repair.
+  const edgeForeground = refineBoundary
+    ? refineGarmentEdge(source, rawImageData.data, blurredData, alpha, edgeBackground, width, height, featherRadius) : undefined
+  return { alpha, edgeBackground, edgeForeground, shadowLightness, referenceLightness, highlightLightness, hasClothing: true }
 }
 
 // One-time setup for a given photo: loads it, runs the existing
@@ -300,7 +310,7 @@ export async function prepareClothingRecolorSession(imageDataUrl: string): Promi
   if (!mask) return null
 
   const originalImageData = context.getImageData(0, 0, canvas.width, canvas.height)
-  const { alpha, edgeBackground, shadowLightness, referenceLightness, highlightLightness, hasClothing } =
+  const { alpha, edgeBackground, edgeForeground, shadowLightness, referenceLightness, highlightLightness, hasClothing } =
     buildFeatheredAlphaMask(mask, originalImageData, canvas.width, canvas.height)
 
   return {
@@ -309,6 +319,7 @@ export async function prepareClothingRecolorSession(imageDataUrl: string): Promi
     originalImageData,
     featheredAlpha: alpha,
     edgeBackground,
+    edgeForeground,
     shadowLightness,
     referenceLightness,
     highlightLightness,
@@ -328,6 +339,7 @@ export function applyClothingColor(session: ClothingRecolorSession, hex: string)
     originalImageData,
     featheredAlpha,
     edgeBackground,
+    edgeForeground,
     shadowLightness,
     referenceLightness,
     highlightLightness,
@@ -402,7 +414,10 @@ export function applyClothingColor(session: ClothingRecolorSession, hex: string)
     // skin/background. Recover its garment component before calculating tone;
     // otherwise the original blue contaminates the coral edge even when the
     // mask opacity is increased.
-    const originalRgb: RGB = backgroundRgb
+    const refinedEdgeSpace = edgeForeground?.[dataIndex + 3] ?? 0
+    const originalRgb: RGB = refinedEdgeSpace && edgeForeground
+      ? { r: edgeForeground[dataIndex], g: edgeForeground[dataIndex + 1], b: edgeForeground[dataIndex + 2] }
+      : backgroundRgb
       ? {
           r: clamp((source[dataIndex] - (1 - pixelAlpha) * backgroundRgb.r) / pixelAlpha, 0, 255),
           g: clamp((source[dataIndex + 1] - (1 - pixelAlpha) * backgroundRgb.g) / pixelAlpha, 0, 255),
@@ -439,7 +454,15 @@ export function applyClothingColor(session: ClothingRecolorSession, hex: string)
       l: recoloredLightness,
     })
 
-    if (backgroundRgb) {
+    if (refinedEdgeSpace) {
+      // Replace the reconstructed garment component, rather than blending the
+      // new colour over the already-mixed original RGB (which keeps its hue).
+      // The fit records whether this photo's edge was mixed in linear light or
+      // encoded RGB; surrounding skin/background and local residuals stay put.
+      output[dataIndex] = replaceEdgeGarment(source[dataIndex], originalRgb.r, recoloredRgb.r, pixelAlpha, refinedEdgeSpace)
+      output[dataIndex + 1] = replaceEdgeGarment(source[dataIndex + 1], originalRgb.g, recoloredRgb.g, pixelAlpha, refinedEdgeSpace)
+      output[dataIndex + 2] = replaceEdgeGarment(source[dataIndex + 2], originalRgb.b, recoloredRgb.b, pixelAlpha, refinedEdgeSpace)
+    } else if (backgroundRgb) {
       // Recompose the recoloured garment component over the untouched local
       // background. This removes original-shirt contamination without ever
       // recolouring the skin/background contribution of the mixed pixel.
@@ -455,5 +478,7 @@ export function applyClothingColor(session: ClothingRecolorSession, hex: string)
   }
 
   outputContext.putImageData(outputImageData, 0, 0)
-  return outputCanvas.toDataURL('image/jpeg', 0.92)
+  // JPEG chroma subsampling can recreate coloured rims and alter untouched
+  // neck/background pixels after a correct composite. Keep try-on lossless.
+  return outputCanvas.toDataURL('image/png')
 }
