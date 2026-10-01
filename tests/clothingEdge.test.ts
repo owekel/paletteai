@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { garmentTrimap, refineGarmentEdge, replaceEdgeGarment, edgeToLinear, edgeToSrgb } from '../src/services/clothingEdgeMatte'
 import { hexToRgb } from '../src/services/colorUtils'
 import { clothingEdgeFixture, EDGE_CASES } from '../src/dev/clothingEdgeFixtures'
+import { harmonizeGarmentEdge } from '../src/services/clothingEdgeAppearance'
 
 let checks = 0
 function check(name: string, run: () => void) { run(); checks++; console.log(`✓ ${name}`) }
@@ -203,6 +204,73 @@ check('Full collar/shoulder fixtures never recolour known exterior across all tr
       assert.equal(alpha[i], 0, `${EDGE_CASES[index].name}, ${linear}, exterior pixel ${i}`)
       assert.equal(foreground[i * 4 + 3], 0)
     }
+  }
+})
+function appearanceFixture() {
+  const width = 24, height = 8
+  const alpha = new Uint8ClampedArray(width * height)
+  const foreground = new Uint8ClampedArray(width * height * 4)
+  const dyed = new Float32Array(width * height * 3)
+  for (let y = 0; y < height; y++) for (let x = 9; x < width; x++) {
+    const i = y * width + x
+    alpha[i] = 255
+    if (x < 17) foreground[i * 4 + 3] = 1
+    dyed.set([156, 140, 128], i * 3)
+  }
+  return { width, height, alpha, foreground, dyed }
+}
+const light = (rgb: number[]) => rgb.reduce((sum, v, c) => sum + edgeToLinear(v / 255) * [0.2126, 0.7152, 0.0722][c], 0)
+check('Edge appearance harmonizes chroma without changing opaque local luminance or matte geometry', () => {
+  const f = appearanceFixture(), i = 3 * f.width + 9
+  f.dyed.set([139, 132, 128], i * 3)
+  const beforeAlpha = f.alpha.slice(), beforeForeground = f.foreground.slice(), beforeDye = f.dyed.slice()
+  const corrections = harmonizeGarmentEdge(f.dyed, f.alpha, f.foreground, f.width, f.height)
+  const original = Array.from(f.dyed.slice(i * 3, i * 3 + 3)), polished = corrections.get(i)!
+  assert.ok(polished)
+  assert.ok(Math.abs(light(original) - light(polished)) < 1e-8)
+  const chromaRatio = (rgb: number[]) => edgeToLinear(rgb[0] / 255) / edgeToLinear(rgb[2] / 255)
+  assert.ok(Math.abs(chromaRatio(polished) - chromaRatio([156, 140, 128])) < Math.abs(chromaRatio(original) - chromaRatio([156, 140, 128])))
+  assert.deepEqual(f.alpha, beforeAlpha); assert.deepEqual(f.foreground, beforeForeground); assert.deepEqual(f.dyed, beforeDye)
+  for (const index of corrections.keys()) {
+    assert.ok(f.alpha[index] > 0 && f.foreground[index * 4 + 3])
+    assert.ok(index % f.width < 12, 'no changes beyond the three-photo-pixel band')
+  }
+})
+check('Fractional-edge tone noise is gently reduced with a four-percent luminance cap', () => {
+  for (const rgb of [[130, 116, 106], [168, 205, 220]]) {
+    const f = appearanceFixture(), i = 3 * f.width + 9
+    f.alpha[i] = 128; f.dyed.set(rgb, i * 3)
+    for (let j = 0; j < f.alpha.length; j++) if (j !== i && f.alpha[j]) f.dyed.set(rgb.map(v => v * 1.07), j * 3)
+    const correction = harmonizeGarmentEdge(f.dyed, f.alpha, f.foreground, f.width, f.height).get(i)!
+    assert.ok(correction)
+    assert.ok(light(correction) > light(rgb))
+    assert.ok(light(correction) / light(rgb) <= 1.040001)
+    assert.equal(f.alpha[i], 128, 'subpixel antialiasing is untouched')
+  }
+})
+check('Genuine dark seams and uniform fabric are not flattened by boundary polish', () => {
+  const f = appearanceFixture(), i = 3 * f.width + 9
+  assert.equal(harmonizeGarmentEdge(f.dyed, f.alpha, f.foreground, f.width, f.height).size, 0)
+  f.dyed.set([46, 40, 36], i * 3); f.alpha[i] = 180
+  assert.equal(harmonizeGarmentEdge(f.dyed, f.alpha, f.foreground, f.width, f.height).has(i), false)
+})
+check('Appearance polish preserves excluded skin, confident interior, and all five target dye directions', () => {
+  for (const test of EDGE_CASES) for (const space of [1, 2]) {
+    const f = appearanceFixture(), target = Object.values(hexToRgb(test.target)), i = 3 * f.width + 9
+    for (let j = 0; j < f.alpha.length; j++) if (f.alpha[j]) f.dyed.set(target, j * 3)
+    f.alpha[i] = 170; f.foreground[i * 4 + 3] = space
+    f.dyed.set(target.map(v => v * 0.96), i * 3)
+    const corrections = harmonizeGarmentEdge(f.dyed, f.alpha, f.foreground, f.width, f.height)
+    for (const [index, rgb] of corrections) {
+      assert.ok(f.alpha[index] && f.foreground[index * 4 + 3])
+      assert.ok(index % f.width < 12)
+      assert.ok(rgb.every(v => v >= 0 && v <= 255))
+      // A positive mixture of nearby target chromaticities cannot reintroduce
+      // the source dye; the original skin component and alpha are unchanged.
+      for (let c = 0; c < 3; c++) assert.ok(Number.isFinite(replaceEdgeGarment(140, rgb[c], f.alpha[index] / 255, space)))
+    }
+    assert.equal(corrections.has(3 * f.width + 8), false)
+    assert.equal(corrections.has(3 * f.width + 18), false)
   }
 })
 console.log(`\n${checks} clothing-edge checks passed.`)

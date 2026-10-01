@@ -59,7 +59,9 @@ export default function RecolorPreview() {
       const baseline = applyClothingColor(makeSession(image, oldMask), EDGE_CASES[index].target)!
       const before = previous ?? baseline
       const after = applyClothingColor(makeSession(image, mask), EDGE_CASES[index].target)!
-      const [oldPixels, newPixels] = await Promise.all([decode(baseline), decode(after)])
+      const unpolished = applyClothingColor(makeSession(image, mask), EDGE_CASES[index].target, false)!
+      const [oldPixels, newPixels, unpolishedPixels] = await Promise.all([decode(baseline), decode(after), decode(unpolished)])
+      let polishChangedPixels = 0, polishMaxChannelDelta = 0, polishExteriorChanged = 0, polishInteriorChanged = 0
       let oldExterior = 0, newExterior = 0, interiorChanged = 0, tagged = 0, linearTagged = 0
       let oldPartial = 0, newPartial = 0
       for (let i = 0; i < mask.alpha.length; i++) {
@@ -67,6 +69,12 @@ export default function RecolorPreview() {
         const oldChanged = [0, 1, 2].some(c => oldPixels.data[k + c] !== image.data[k + c])
         const newChanged = [0, 1, 2].some(c => newPixels.data[k + c] !== image.data[k + c])
         if (photo ? oldMask.alpha[i] === 0 && mask.alpha[i] === 0 : fixture.coverage[i] === 0) { if (oldChanged) oldExterior++; if (newChanged) newExterior++ }
+        const polishDelta = Math.max(...[0, 1, 2].map(c => Math.abs(newPixels.data[k + c] - unpolishedPixels.data[k + c])))
+        if (polishDelta) {
+          polishChangedPixels++; polishMaxChannelDelta = Math.max(polishMaxChannelDelta, polishDelta)
+          if (photo ? mask.alpha[i] === 0 : fixture.coverage[i] === 0) polishExteriorChanged++
+          if (mask.boundaryDiagnostics!.trimap[i] === 255) polishInteriorChanged++
+        }
         if (mask.edgeForeground?.[k + 3]) { tagged++; if (mask.edgeForeground[k + 3] === 2) linearTagged++ }
         if (oldMask.alpha[i] === 255 && mask.alpha[i] === 255 && oldMask.edgeBackground[k + 3] === 0 && !mask.edgeForeground?.[k + 3]
           && [0, 1, 2].some(c => oldPixels.data[k + c] !== newPixels.data[k + c])) interiorChanged++
@@ -101,6 +109,8 @@ export default function RecolorPreview() {
             foreground: Array.from(mask.edgeForeground!.slice(k, k + 4)), background: Array.from(mask.edgeBackground.slice(k, k + 4)) }
         }) } : {}),
         oldExteriorChanged: oldExterior, newExteriorChanged: newExterior, interiorChanged,
+        appearancePolish: { changedPixels: polishChangedPixels, maxChannelDelta: polishMaxChannelDelta,
+          exteriorChanged: polishExteriorChanged, confidentInteriorChanged: polishInteriorChanged },
         ...(photo ? {} : { fullyGarmentUndercoveredBefore: oldPartial, fullyGarmentUndercoveredAfter: newPartial }),
       }, null, 2) }) }
     })().catch(() => { if (!cancelled) { setPending(false); setError('Could not prepare this comparison.') } })

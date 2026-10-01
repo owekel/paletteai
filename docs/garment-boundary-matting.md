@@ -77,3 +77,29 @@ clipped red boundary pixels, fractional antialiasing, unchanged skin shadows,
 unrelated/indistinguishable colours, unchanged confident interior/exterior,
 and residual-free compositing. The private regression portrait is not stored
 in the repository.
+
+## Final appearance polish
+
+The accepted matte is unchanged. Its recovered foreground tone is measured
+independently at each edge pixel; small unmixing errors can become a subtle
+grey/chroma step after dyeing, particularly with a pale target. A post-dye,
+pre-composite appearance pass now reads only accepted garment pixels within
+three photo pixels of the resolved visual edge. It uses nearby >=250/255
+coverage fabric, inverse-distance weights and a bilateral luminance guard
+(log-luminance difference <=0.3) to harmonize linear-RGB chromaticity. Weights
+taper inward; neighbours are immutable, so corrections cannot propagate.
+
+Opaque pixels retain their own linear-light luminance exactly. Fractional
+pixels allow only a weak (at most 25% before coverage/taper weighting) local
+tone regularization, capped at +/-4% of their luminance. Distinct dark seams
+and folds are excluded by the shading guard; out-of-gamut corrections are
+skipped, not clipped. The original alpha, blend space, recovered source and
+background are never edited. Recomposition still replaces only the garment
+component; no final-image blur crosses onto skin.
+
+Developer metrics separately report the appearance pass's changed-pixel
+count, maximum channel delta, exterior changes and confident-interior changes
+against the same accepted matte without polish. This isolates appearance
+regressions from existing segmentation/matting ambiguities. The 384px live
+blue/coral fixture has 1-2 pre-existing exterior matte false positives; the
+polish leaves those pixels unchanged. It does not attempt a mask redesign.
