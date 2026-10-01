@@ -60,14 +60,15 @@ export default function RecolorPreview() {
       const before = previous ?? baseline
       const after = applyClothingColor(makeSession(image, mask), EDGE_CASES[index].target)!
       const [oldPixels, newPixels] = await Promise.all([decode(baseline), decode(after)])
-      let oldExterior = 0, newExterior = 0, interiorChanged = 0, tagged = 0, linearTagged = 0
+      let oldExterior = 0, newExterior = 0, interiorChanged = 0, tagged = 0, alphaChanged = 0
       let oldPartial = 0, newPartial = 0
       for (let i = 0; i < mask.alpha.length; i++) {
         const k = i * 4
         const oldChanged = [0, 1, 2].some(c => oldPixels.data[k + c] !== image.data[k + c])
         const newChanged = [0, 1, 2].some(c => newPixels.data[k + c] !== image.data[k + c])
         if (photo ? oldMask.alpha[i] === 0 && mask.alpha[i] === 0 : fixture.coverage[i] === 0) { if (oldChanged) oldExterior++; if (newChanged) newExterior++ }
-        if (mask.edgeForeground?.[k + 3]) { tagged++; if (mask.edgeForeground[k + 3] === 2) linearTagged++ }
+        if (mask.edgeForeground?.[k + 3]) tagged++
+        if (mask.alpha[i] !== oldMask.alpha[i]) alphaChanged++
         if (oldMask.alpha[i] === 255 && mask.alpha[i] === 255 && oldMask.edgeBackground[k + 3] === 0 && !mask.edgeForeground?.[k + 3]
           && [0, 1, 2].some(c => oldPixels.data[k + c] !== newPixels.data[k + c])) interiorChanged++
         if (!photo && fixture.coverage[i] === 1 && oldMask.alpha[i] < 250) {
@@ -77,26 +78,24 @@ export default function RecolorPreview() {
       }
       const raw = new ImageData(image.width, image.height), selected = new ImageData(image.width, image.height)
       const interior = new ImageData(image.width, image.height), band = new ImageData(image.width, image.height)
-      const rejected = [0, 0, 0, 0, 0]
       for (let y = 0; y < image.height; y++) for (let x = 0; x < image.width; x++) {
         const i = y * image.width + x, k = i * 4
         const label = detected.categories[Math.floor(y * detected.height / image.height) * detected.width + Math.floor(x * detected.width / image.width)]
         raw.data[k] = raw.data[k + 1] = raw.data[k + 2] = label === 4 ? 255 : 0; raw.data[k + 3] = 255
         selected.data[k] = selected.data[k + 1] = selected.data[k + 2] = mask.edgeForeground?.[k + 3] ? 255 : 0; selected.data[k + 3] = 255
         const debug = mask.boundaryDiagnostics!
-        rejected[debug.rejected[i]]++
         for (const [data, show] of [[interior, debug.trimap[i] === 255], [band, debug.trimap[i] === 128]] as const) {
           data.data[k] = data.data[k + 1] = data.data[k + 2] = show ? 255 : 0; data.data[k + 3] = 255
         }
       }
-      if (!cancelled) { setPending(false); setResult({ caseName: EDGE_CASES[index].name, original: png(image), before, after, raw: png(raw), interior: png(interior), band: png(band), selected: png(selected), width: image.width, height: image.height, metrics: JSON.stringify({
-        case: EDGE_CASES[index].name, mode: photo ? simulate ? 'real photo with simulated source dye' : 'unaltered original photo' : 'controlled coverage', maskWidth: detected.width, maskHeight: detected.height, linear, tagged, linearTagged,
+      if (!cancelled) { setPending(false); setResult({ caseName: photo && !simulate ? `Original photo → ${EDGE_CASES[index].name.split(' → ')[1]} (${EDGE_CASES[index].target})` : EDGE_CASES[index].name, original: png(image), before, after, raw: png(raw), interior: png(interior), band: png(band), selected: png(selected), width: image.width, height: image.height, metrics: JSON.stringify({
+        case: EDGE_CASES[index].name, mode: photo ? simulate ? 'real photo with simulated source dye' : 'unaltered original photo' : 'controlled coverage', maskWidth: detected.width, maskHeight: detected.height, linear,
+        conservativeEdge: { interiorToneReferences: tagged, alphaChanged, search: 'garment side only; 3 photo pixels; no alpha fitting' },
         trimapRadius: mask.boundaryDiagnostics?.bandRadius,
         timingsMs: { baseline: Math.round(baselinePrepared - started), boundaryPreparation: Math.round(mattePrepared - baselinePrepared), total: Math.round(performance.now() - started) },
-        skipped: { exteriorMatch: rejected[1], missingReferences: rejected[2], ambiguousFit: rejected[3], disconnected: rejected[4] },
         ...(probes.length ? { regressionProbes: probes.map(([x, y]) => {
           const i = y * image.width + x, k = i * 4
-          return { x, y, distance: mask.boundaryDiagnostics!.signedDistance[i], status: mask.boundaryDiagnostics!.rejected[i],
+          return { x, y, distance: mask.boundaryDiagnostics!.signedDistance[i],
             alpha: mask.alpha[i], source: Array.from(image.data.slice(k, k + 3)), output: Array.from(newPixels.data.slice(k, k + 3)),
             foreground: Array.from(mask.edgeForeground!.slice(k, k + 4)), background: Array.from(mask.edgeBackground.slice(k, k + 4)) }
         }) } : {}),
@@ -148,7 +147,7 @@ export default function RecolorPreview() {
     })}</div>}
     {error && <p role="alert">{error}</p>}
     {pending && <p role="status" className="my-3">Preparing boundary comparison…</p>}
-    {result && <><p className="my-3">Rendered transition: {result.caseName}</p><div className="grid gap-4 md:grid-cols-3">{[['Original', result.original], ['Previous composite', result.before], ['Refined composite', result.after]].map(([label, url]) =>
+    {result && <><p className="my-3">Rendered transition: {result.caseName}</p><p className="mb-3 text-xs">{previous ? 'Previous composite uses the uploaded saved render.' : 'Previous composite is the restored smooth-matte baseline, without the optional source-hue correction.'}</p><div className="grid gap-4 md:grid-cols-3">{[['Original', result.original], ['Previous composite', result.before], ['Refined composite', result.after]].map(([label, url]) =>
       <figure key={label}><figcaption>{label}</figcaption><img alt={label} src={url} className="mt-2 w-full" />
         <p className="mt-3 text-xs">{label} · neckline at 3×</p>
         {zoomImage(url, `${label} collar zoom`, 'collar')}
@@ -156,8 +155,8 @@ export default function RecolorPreview() {
         {zoomImage(url, `${label} shoulder zoom`, 'shoulder')}
       </figure>)}</div><details open className="my-6"><summary>Developer boundary diagnostics</summary>
         <label>Diagnostic zoom <select aria-label="Diagnostic zoom" value={zoom} onChange={e => setZoom(e.target.value as typeof zoom)}><option value="collar">Right collar</option><option value="shoulder">Left shoulder</option></select></label>
-        <p className="my-2 text-xs">White = selected pixels; black = excluded. Trimap is a search band, not an expanded mask.</p>
-        <div className="grid gap-4 md:grid-cols-4">{[['Original clothing mask', result.raw], ['Confident garment interior', result.interior], ['Uncertain boundary band', result.band], ['Selected decontamination pixels', result.selected]].map(([label, url]) => <figure key={label}><figcaption>{label}</figcaption><img alt={label} src={url} className="w-full" />
+        <p className="my-2 text-xs">White = selected pixels; black = excluded. The band is diagnostic only. Tone sampling never changes alpha.</p>
+        <div className="grid gap-4 md:grid-cols-4">{[['Original clothing mask', result.raw], ['Confident garment interior', result.interior], ['Uncertain boundary band', result.band], ['Interior-tone corrected pixels', result.selected]].map(([label, url]) => <figure key={label}><figcaption>{label}</figcaption><img alt={label} src={url} className="w-full" />
           {zoomImage(url, `${label} zoom`, zoom)}
         </figure>)}</div>
       </details><pre aria-label="Edge regression metrics" className="mt-6 overflow-auto text-xs">{result.metrics}</pre></>}

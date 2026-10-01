@@ -13,7 +13,7 @@
 
 import { detectHairMask, isClothesAtRelativePosition, type HairMask } from './vision/hairSegmentation'
 import { clamp, hexToRgb, hslToRgb, rgbToHsl, type RGB } from './colorUtils'
-import { garmentTrimap, refineGarmentEdge, replaceEdgeGarment, type ClothingBoundaryDiagnostics } from './clothingEdgeMatte'
+import { garmentTrimap, sampleGarmentEdgeTone, type ClothingBoundaryDiagnostics } from './clothingEdgeMatte'
 
 export interface ClothingRecolorSession {
   imageWidth: number
@@ -27,8 +27,8 @@ export interface ClothingRecolorSession {
   // estimate, allowing applyClothingColor to replace the garment component
   // of a mixed edge pixel without tinting its background component.
   edgeBackground: Uint8ClampedArray
-  // Narrow-band foreground colour + blend-space tag. Optional for older
-  // prepared sessions; the interior fabric transform remains identical.
+  // Interior tone reference for strongly garment-coloured boundary pixels;
+  // never a reconstructed alpha or a background-contaminated colour.
   edgeForeground?: Uint8ClampedArray
   boundaryDiagnostics?: ClothingBoundaryDiagnostics
   // Robust tonal landmarks from the original garment. Percentiles are used
@@ -43,6 +43,8 @@ export interface ClothingRecolorSession {
 interface ClothingMaskResult {
   alpha: Uint8ClampedArray
   edgeBackground: Uint8ClampedArray
+  // Interior tone reference for strongly garment-coloured boundary pixels;
+  // never a reconstructed alpha or a background-contaminated colour.
   edgeForeground?: Uint8ClampedArray
   boundaryDiagnostics?: ClothingBoundaryDiagnostics
   shadowLightness: number
@@ -78,17 +80,17 @@ function loadImage(dataUrl: string): Promise<HTMLImageElement> {
 }
 
 // Builds a smooth alpha mask marking the clothing region at the photo's
-// full resolution, plus the UNCHANGED fabric tonal landmarks. The semantic
-// edge is only a coarse location prior; the boundary trimap resolves actual
-// coverage from the photo. Blur is retained for reference/fallback confidence,
-// not used as coverage for successfully colour-matted boundary pixels.
+// full resolution, plus robust shadow/midtone/highlight landmarks used by
+// applyClothingColor. The raw per-pixel mask is blocky because it comes from
+// a lower-resolution model output, so a small blur and a contrast curve
+// produce a narrow, natural edge without the old-colour halo.
 export function buildFeatheredAlphaMask(
   mask: HairMask,
   originalImageData: ImageData,
   width: number,
   height: number,
   refineBoundary = true,
-  debugBoundary: boolean | number[] = false,
+  debugBoundary = false,
 ): ClothingMaskResult {
   const empty: ClothingMaskResult = {
     alpha: new Uint8ClampedArray(width * height),
@@ -268,10 +270,7 @@ export function buildFeatheredAlphaMask(
     // Only the narrow uncertainty band gets colour-guided matting. It can
     // recover a garment-coloured pixel just outside the semantic boundary,
     // while a true skin/background pixel estimates near-zero garment coverage.
-    // The old square-average matte is kept ONLY as the developer comparison
-    // baseline. Production uses a single signed-trimap colour matte below;
-    // do not stack two conflicting foreground/background estimators.
-    const edgeMatte = !refineBoundary && blurredAlpha > 0.02 && blurredAlpha < 0.98 ? estimateEdgeMatte(i) : null
+    const edgeMatte = blurredAlpha > 0.02 && blurredAlpha < 0.98 ? estimateEdgeMatte(i) : null
     if (edgeMatte) {
       if (edgeMatte.coverage > 0.04) {
         alpha[i] = Math.round(edgeMatte.coverage * 255)
@@ -291,20 +290,16 @@ export function buildFeatheredAlphaMask(
     }
   }
 
-  // The unrefined path is exposed only for the developer regression preview.
-  // Normal session preparation always uses the boundary repair.
-  // MediaPipe returns an image-sized category plane, but this model infers on
-  // a 256x256 grid. Two inference cells + a three-pixel anti-alias footprint
-  // bound the boundary search (including JPEG chroma interpolation).
-  // This is ONLY a colour-matting search trimap, never a
-  // coverage expansion. The confidently masked interior stays byte-identical.
-  const modelCell = Math.max(width / Math.min(mask.width, 256), height / Math.min(mask.height, 256))
-  const bandRadius = Math.max(3, Math.ceil(2 * modelCell) + 3)
-  const boundary = refineBoundary ? garmentTrimap(rawImageData.data, width, height, bandRadius) : undefined
-  if (boundary && Array.isArray(debugBoundary)) boundary.references = Object.fromEntries(debugBoundary.map(i => [i, {}]))
+  // The original local matte and feather are final. This optional pass reads
+  // them without changing coverage; it only supplies safe interior tone.
   const edgeForeground = refineBoundary
-    ? refineGarmentEdge(source, rawImageData.data, blurredData, alpha, edgeBackground, width, height, featherRadius, { bandRadius, diagnostics: boundary }) : undefined
-  return { alpha, edgeBackground, edgeForeground, boundaryDiagnostics: debugBoundary ? boundary : undefined,
+    ? sampleGarmentEdgeTone(source, rawImageData.data, blurredData, alpha, edgeBackground, width, height, featherRadius)
+    : new Uint8ClampedArray(source.length)
+  const boundaryDiagnostics = debugBoundary ? garmentTrimap(rawImageData.data, width, height, 3) : undefined
+  if (boundaryDiagnostics) for (let i = 0; i < alpha.length; i++) {
+    if (edgeForeground[i * 4 + 3]) boundaryDiagnostics.selected[i] = 1
+  }
+  return { alpha, edgeBackground, edgeForeground, boundaryDiagnostics,
     shadowLightness, referenceLightness, highlightLightness, hasClothing: true }
 }
 
@@ -430,8 +425,10 @@ export function applyClothingColor(session: ClothingRecolorSession, hex: string)
     // skin/background. Recover its garment component before calculating tone;
     // otherwise the original blue contaminates the coral edge even when the
     // mask opacity is increased.
-    const refinedEdgeSpace = edgeForeground?.[dataIndex + 3] ?? 0
-    const originalRgb: RGB = refinedEdgeSpace && edgeForeground
+    // Only strongly source-dye-coloured edge pixels get a local interior
+    // reference. Never use their mixed/background lightness as garment tone.
+    const toneReference = edgeForeground?.[dataIndex + 3]
+    const originalRgb: RGB = toneReference && edgeForeground
       ? { r: edgeForeground[dataIndex], g: edgeForeground[dataIndex + 1], b: edgeForeground[dataIndex + 2] }
       : backgroundRgb
       ? {
@@ -470,15 +467,7 @@ export function applyClothingColor(session: ClothingRecolorSession, hex: string)
       l: recoloredLightness,
     })
 
-    if (refinedEdgeSpace) {
-      // Replace the reconstructed garment component, rather than blending the
-      // new colour over the already-mixed original RGB (which keeps its hue).
-      // The fit records whether this photo's edge was mixed in linear light or
-      // encoded RGB. Recompose instead of retaining source-coloured residuals.
-      output[dataIndex] = replaceEdgeGarment(edgeBackground[dataIndex], recoloredRgb.r, pixelAlpha, refinedEdgeSpace)
-      output[dataIndex + 1] = replaceEdgeGarment(edgeBackground[dataIndex + 1], recoloredRgb.g, pixelAlpha, refinedEdgeSpace)
-      output[dataIndex + 2] = replaceEdgeGarment(edgeBackground[dataIndex + 2], recoloredRgb.b, pixelAlpha, refinedEdgeSpace)
-    } else if (backgroundRgb) {
+    if (backgroundRgb) {
       // Recompose the recoloured garment component over the untouched local
       // background. This removes original-shirt contamination without ever
       // recolouring the skin/background contribution of the mixed pixel.
@@ -494,7 +483,6 @@ export function applyClothingColor(session: ClothingRecolorSession, hex: string)
   }
 
   outputContext.putImageData(outputImageData, 0, 0)
-  // JPEG chroma subsampling can recreate coloured rims and alter untouched
-  // neck/background pixels after a correct composite. Keep try-on lossless.
+  // Keep untouched skin/background bytes intact after compositing.
   return outputCanvas.toDataURL('image/png')
 }

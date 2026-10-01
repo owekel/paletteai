@@ -1,79 +1,81 @@
-# Garment boundary matting
+# Conservative garment boundary treatment
 
-This change is limited to the clothing boundary. Detection, garment tonal
-percentiles, interior fabric transformation, seasonal analysis, palettes and
-the consumer try-on UI are unchanged.
+## Restored baseline
 
-## Cause of the red rim
+The continuous feather, square local foreground/background matte and
+compositing from `17c89de` are restored. The original tonal percentiles,
+interior dye transformation, segmentation, mask lookup, consumer UI,
+seasonal analysis and palettes are untouched. PNG output is retained.
 
-The image-sized category mask is not a photographic alpha matte: the current
-model infers on a 256×256 grid. In the red-shirt regression, actual garment
-pixels were outside the categorical silhouette, including a dark neckline seam.
-The previous repair searched only three photo pixels. Its outside references
-could themselves be red fabric; its shading fits also rejected dark seams and
-clipped/highlighted red mixed pixels. Rejected pixels fell back to zero/low
-coverage, so the original colour survived. Accepted pixels used an additive
-colour replacement that preserved the RGB fitting residual, including its hue.
-The output is already lossless PNG; output JPEG compression was not the cause.
+Removed from execution: the later 3px / 13px coverage reconstruction,
+outside-category connectivity/propagation, clipped-edge recovery, per-pixel
+blend-space selection and the final appearance polish. No replacement alpha
+fit, mask expansion, morphology or final-image blur has been added.
 
-## Treatment
+## Bright halo failure
 
-- Build a signed-distance trimap. The uncertainty search radius is two inference
-  cells plus three photo pixels of antialias/chroma-interpolation uncertainty.
-  On a 1280×960 photo this is 13 pixels. This is **not** an expanded opacity mask:
-  most of the search band is excluded, and no pixels beyond it are newly edited.
-- Sample local garment/exterior endpoints on opposite sides. Continue past
-  inset-mask "background" references whose chromaticity still matches fabric.
-  Require fabric-like saturation or a garment-hued outlier against a >60%
-  non-garment-hued exterior majority; do not discard a consistently blue-grey
-  backdrop merely because the shirt is blue.
-- Fit photographic coverage in both encoded RGB and linear light. Allow
-  constrained multiplicative/additive fabric shading, favour simpler fits,
-  and recover the original garment component before measuring its tone.
-- For clipped/chroma-interpolated saturated edges, use a guarded colour-prior
-  fit with physically valid in-gamut foreground recovery. Do not carry an RGB
-  residual into the final image.
-- Outside-category recovery needs a connection to resolved garment. Low alpha
-  can taper outward for at most two extra, monotonically decreasing steps.
-- Isolated ambiguous seam pixels can use already-resolved opaque garment
-  components within three photo pixels. They must still fit the local colour
-  model; exterior matches and unrelated colours are not filled morphologically.
-- Apply the existing fabric transform to the recovered garment tone, then
-  compose `coverage × new garment + (1 − coverage) × unchanged exterior` in the
-  fitted blend space. Pure non-garment pixels are copied byte-for-byte.
+The larger reconstruction disabled the earlier local matte. When its new fit
+failed, a semantic garment pixel could keep nearly opaque feathered alpha but
+have no foreground or background estimate. The compositor then interpreted
+its mixed RGB as garment tone. A traced red-photo neckline pixel at (689,817)
+had rejected-fit status, alpha 254/255 and no matte; source [241,181,170]
+became pale cyan [237,246,249]. Background/skin brightness was being treated
+as a fabric highlight on that fallback path. The reconstruction also made
+coverage discontinuous through independent fits/rejections.
 
-The old square-average matte now runs only in the developer comparison path,
-not underneath the new production matte. No extra erosion, dilation or blur
-has been added. Indistinguishable foreground/background colours, grossly wrong
-segmentation and occluding objects remain inherently ambiguous; this bounded
-repair does not try to solve those by tinting surrounding pixels.
+The latest screenshot's original shirt is WHITE, not red. Its bright edge
+can also contain unrecoloured original-white pixels; not every white edge
+pixel proves the luminance bug. The same restored feather/local matte is
+used for it, without forcing neutral ambiguous pixels into a new contour.
 
-## Developer inspection
+## Small remaining correction
 
-Run `npm run dev` and open `/?preview=recolor` (development builds only).
-Upload a local original portrait: original pixels are used directly by default.
-Source-dye simulation is opt-in and explicitly labelled, not photographic
-ground truth. A saved previous PNG can be supplied for the selected target.
+`sampleGarmentEdgeTone` is read-only. Eligibility requires:
 
-The page shows original/baseline/refined output at 3× collar and shoulder zoom,
-with adjustable photo-relative crop centres, plus:
+- semantic garment side, within 3 photo pixels of its boundary;
+- existing nonzero alpha and a valid ORIGINAL local background estimate;
+- at least three nearby raw-garment samples with alpha and blur >=250/255;
+- median reference RGB spread >=32 and HSL saturation >=25%;
+- source hue within 8 degrees of that reference and saturation >=65% of it;
+- reference hues agreeing within 12 degrees;
+- enough hue separation from chromatic background (at least 14 degrees).
 
-- original categorical clothing mask;
-- confident garment interior;
-- uncertain trimap band;
-- pixels selected for colour decontamination.
+Reference lightness must be between 8 and 90. A source more than 15 HSL
+lightness points below the reference is left alone to protect dark seams.
+Achromatic white/black, missing evidence and ambiguous skin-coloured fabric
+do not trigger source-hue suppression. Some residual source fringe is allowed.
 
-Metrics include rejected-reference/fit/connectivity counts, sample pixels,
-preparation timings and confident-interior differences. For synthetic fixtures,
-exterior comparisons use known coverage. For real photos the passthrough count
-is only a compositing check, **not** a ground-truth segmentation accuracy claim.
-The prepared photo matte is reused when only the target colour changes.
+Selected pixels use the componentwise median INTERIOR RGB as the input to
+the unchanged fabric tone curve. They do not inherit mixed-pixel luminance.
+Their original local background and soft alpha are recomposited unchanged.
+Neighbour searches stop when leaving the garment side. Nothing propagates
+outwards, and the correction cannot change geometry or background pixels.
 
-## Regression checks
+## Verification
 
-`npm test` includes encoded/linear-light tests for red→taupe, red→cyan,
-blue→coral, white→black and black→white, plus inset segmentation, dark seams,
-clipped red boundary pixels, fractional antialiasing, unchanged skin shadows,
-unrelated/indistinguishable colours, unchanged confident interior/exterior,
-and residual-free compositing. The private regression portrait is not stored
-in the repository.
+The development preview compares the restored baseline with the minimal
+correction using the same source/mask. Its signed-distance maps are DEBUG ONLY.
+`alphaChanged` must be zero. Normal-size viewing takes priority over 3× crops.
+
+Node tests exercise the production compositor with an in-memory canvas sink,
+plus immutable alpha/source/background, source-hue gating, skin/achromatic
+rejection, dark seams, missing/inconsistent evidence, interior preservation,
+continuous fractional coverage and mixed-brightness rejection. They do not
+claim segmentation accuracy. Private regression photos are not committed.
+
+Final rollback review (2026-09-30):
+
+- Original red portrait → deep teal, taupe and pale cyan: normal-size and
+  3× collar/shoulder review. 1,767 pixels have strong interior-tone evidence;
+  zero alpha changes, zero interior differences, zero changes to zero-alpha pixels.
+- Latest original WHITE portrait → deep teal and black: zero additional
+  tone-reference pixels. The consumer deep-teal PNG matches the fresh
+  regression renderer byte-for-byte. The broad bright/chopped edge is reduced.
+- Controlled white→black and black→white fixtures reviewed in encoded and
+  linear source blend modes. The neutral-source cases retain the baseline.
+- `npm run lint`, all 26 tests, production build and diff whitespace checks pass.
+
+This is deliberately not complete fringe removal. Thin residual source colour
+can remain at 3×, particularly outside strong garment-side hue evidence.
+Existing segmentation limitations (including other fabric in the scene) are
+not corrected here. Preserving the restored silhouette takes priority.

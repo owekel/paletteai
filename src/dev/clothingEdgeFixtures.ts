@@ -7,6 +7,7 @@ export const EDGE_CASES = [
   { name: 'Blue → coral', original: '#286EB6', target: '#FF6F59' },
   { name: 'White → black', original: '#EEEEEA', target: '#191B22' },
   { name: 'Black → white', original: '#252831', target: '#F6F1E4' },
+  { name: 'Red → deep teal', original: '#BD2834', target: '#1F5C56' },
 ]
 
 /** Procedural collar/shoulder with known coverage, folds, skin and backdrop.
