@@ -14,7 +14,6 @@
 import { detectHairMask, isClothesAtRelativePosition, type HairMask } from './vision/hairSegmentation'
 import { clamp, hexToRgb, hslToRgb, rgbToHsl, type RGB } from './colorUtils'
 import { garmentTrimap, refineGarmentEdge, replaceEdgeGarment, type ClothingBoundaryDiagnostics } from './clothingEdgeMatte'
-import { harmonizeGarmentEdge } from './clothingEdgeAppearance'
 
 export interface ClothingRecolorSession {
   imageWidth: number
@@ -349,9 +348,7 @@ export async function prepareClothingRecolorSession(imageDataUrl: string): Promi
 // avoids clipping an entire light or dark garment, and reserves a little
 // headroom even for pure black/white selections so they still look like
 // fabric rather than a flat digital fill.
-// The optional switch is only for developer comparisons against the accepted
-// unpolished matte. Consumer try-on always uses the default appearance polish.
-export function applyClothingColor(session: ClothingRecolorSession, hex: string, polishBoundary = true): string | null {
+export function applyClothingColor(session: ClothingRecolorSession, hex: string): string | null {
   const targetRgb = hexToRgb(hex)
   const targetHsl = rgbToHsl(targetRgb)
   const {
@@ -406,9 +403,6 @@ export function applyClothingColor(session: ClothingRecolorSession, hex: string,
 
   const outputImageData = outputContext.createImageData(imageWidth, imageHeight)
   const output = outputImageData.data
-  // Keep uncomposited dye colours for the tiny appearance-only edge pass.
-  // The legacy developer baseline and older sessions remain unchanged.
-  const dyed = edgeForeground && polishBoundary ? new Float32Array(featheredAlpha.length * 3) : undefined
 
   for (let i = 0; i < featheredAlpha.length; i++) {
     const pixelAlpha = featheredAlpha[i] / 255
@@ -475,11 +469,6 @@ export function applyClothingColor(session: ClothingRecolorSession, hex: string,
       s: recoloredSaturation,
       l: recoloredLightness,
     })
-    if (dyed) {
-      dyed[i * 3] = recoloredRgb.r
-      dyed[i * 3 + 1] = recoloredRgb.g
-      dyed[i * 3 + 2] = recoloredRgb.b
-    }
 
     if (refinedEdgeSpace) {
       // Replace the reconstructed garment component, rather than blending the
@@ -502,17 +491,6 @@ export function applyClothingColor(session: ClothingRecolorSession, hex: string,
       output[dataIndex + 2] = originalRgb.b + (recoloredRgb.b - originalRgb.b) * pixelAlpha
     }
     output[dataIndex + 3] = source[dataIndex + 3]
-  }
-
-  if (dyed && edgeForeground) {
-    for (const [i, garment] of harmonizeGarmentEdge(dyed, featheredAlpha, edgeForeground, imageWidth, imageHeight)) {
-      const k = i * 4
-      // Identical matte, blend space and untinted exterior; only the garment
-      // component is harmonized. Never blur the final composite across skin.
-      for (let c = 0; c < 3; c++) output[k + c] = replaceEdgeGarment(
-        edgeBackground[k + c], garment[c], featheredAlpha[i] / 255, edgeForeground[k + 3],
-      )
-    }
   }
 
   outputContext.putImageData(outputImageData, 0, 0)
