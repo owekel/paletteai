@@ -10,9 +10,12 @@ export class CaptureBuffer {
     while (this.frames.reduce((sum, f) => sum + f.image.length, 0) > C.bufferMaxCharacters) this.frames.shift()
   }
   summary() { return this.frames.map(({ id, timestamp, quality }) => ({ id, timestamp, score: quality.score, subscores: quality.subscores })) }
-  best(now: number): { frame: CaptureFrame; selection: CaptureSelection } | null {
+  candidates(now: number): CaptureFrame[] {
     this.frames = this.frames.filter(f => now - f.timestamp <= C.bufferMaxAgeMs && now >= f.timestamp)
-    const frame = [...this.frames].sort((a, b) => b.quality.score - a.quality.score || b.timestamp - a.timestamp)[0]
+    return [...this.frames].sort((a, b) => b.quality.score - a.quality.score || b.timestamp - a.timestamp)
+  }
+  best(now: number): { frame: CaptureFrame; selection: CaptureSelection } | null {
+    const frame = this.candidates(now)[0]
     return frame ? { frame, selection: { method: 'auto', selectedId: frame.id, quality: frame.quality, frames: this.summary(),
       reason: 'Highest weighted photo-quality score in the current uninterrupted stable window; newest frame breaks a tie.' } } : null
   }

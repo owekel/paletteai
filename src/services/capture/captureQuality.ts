@@ -21,6 +21,10 @@ const clamp = (n: number) => Math.max(0, Math.min(1, n))
 /** Input quality only. No skin-temperature target or classification feedback. */
 export function evaluateCaptureQuality(m: CaptureMetrics): CaptureQuality {
   const g = C.geometry, l = C.lighting
+  // Ranking sees all three regions; the existing live blockers stay unchanged.
+  const regionalLevels = m.regions.map(r => r.linearLuma + l.linearLumaFloor)
+  const regionalStops = regionalLevels.length === 3
+    ? Math.log2(Math.max(...regionalLevels) / Math.min(...regionalLevels)) : m.cheekStops
   const blockers: CaptureIssue[] = []
   if (!m.faceCount) blockers.push('no-face')
   else if (m.faceCount > 1) blockers.push('multiple-faces')
@@ -42,7 +46,7 @@ export function evaluateCaptureQuality(m: CaptureMetrics): CaptureQuality {
     framing: clamp(1 - 0.5 * (Math.abs(m.centerX - g.centerX) / g.maxOffsetX + Math.abs(m.centerY - g.centerY) / g.maxOffsetY)),
     landmarks: clamp(m.landmarkPlausibility * (m.regions.filter(r => r.pixels >= g.minRegionPixels && r.usableFraction >= g.minUsableRegionFraction).length / 3)),
     exposure: clamp(1 - Math.max(m.shadows / l.maxShadowFraction, m.highlights / l.maxHighlightFraction)),
-    lighting: clamp(1 - C.lightingScorePenalties.imbalance * m.cheekStops / l.maxCheekStops - C.lightingScorePenalties.colourSplit * m.mixedChromaDistance / l.mixedChromaDistance),
+    lighting: clamp(1 - C.lightingScorePenalties.imbalance * Math.max(m.cheekStops, regionalStops) / l.maxCheekStops - C.lightingScorePenalties.colourSplit * m.mixedChromaDistance / l.mixedChromaDistance),
   }
   const score = (Object.keys(subscores) as (keyof CaptureSubscores)[]).reduce((sum, key) => sum + subscores[key] * C.weights[key], 0)
   return { metrics: m, blockers, blocker: blockers[0] ?? null, score, subscores }

@@ -1,6 +1,6 @@
 /** Provisional photographic limits, independent of season scores/reliabilities. */
 export const CAPTURE_CONFIG = {
-  version: 'guided-capture-v1',
+  version: 'guided-capture-v2',
   previewWidth: 360,
   previewHeight: 480,
   captureLongEdge: 1280,
@@ -13,6 +13,19 @@ export const CAPTURE_CONFIG = {
   bufferFrames: 5,
   bufferMaxAgeMs: 1500,
   bufferMaxCharacters: 6_000_000,
+  finalists: {
+    count: 3,
+    retryDelayMs: 3000,
+    selectionTimeoutMs: 25000,
+    minimumRegionPixels: 40,
+    minimumRegionReliability: 0.2,
+    goodRegionalDeltaL: 0.035,
+    maximumRegionalDeltaL: 0.14,
+    poorSkinConsistency: 0.15,
+    inconsistentLightingDeltaL: 0.10,
+    weights: { lighting: 0.30, skinConsistency: 0.12, exposure: 0.16, sampling: 0.12, mixedLighting: 0.08,
+      sharpness: 0.08, steadiness: 0.04, framing: 0.04, pose: 0.03, landmarks: 0.03 },
+  },
   modelTimeoutMs: 20000,
   verificationTimeoutMs: 25000,
   landmarkConfidence: 0.6,

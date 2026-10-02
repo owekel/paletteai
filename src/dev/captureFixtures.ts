@@ -1,6 +1,7 @@
 import type { CaptureMetrics, CaptureRegion } from '../types/capture'
+import { resultFixture } from './resultsFixtures'
 
-export const CAPTURE_SCENARIOS = ['ideal', 'uneven', 'dark', 'bright', 'moving', 'off-center', 'too-far', 'too-close', 'tilted', 'covered', 'multiple-faces', 'no-face', 'mixed', 'ready-then-moving', 'guidance-unavailable', 'permission-denied', 'post-retake', 'verification-error'] as const
+export const CAPTURE_SCENARIOS = ['ideal', 'finalist-fallback', 'finalist-excellent', 'finalist-none', 'uneven', 'dark', 'bright', 'moving', 'off-center', 'too-far', 'too-close', 'tilted', 'covered', 'multiple-faces', 'no-face', 'mixed', 'ready-then-moving', 'guidance-unavailable', 'permission-denied', 'post-retake', 'verification-error'] as const
 export type CaptureScenario = typeof CAPTURE_SCENARIOS[number]
 
 /** Synthetic INPUT metrics only. Never enters the production capture runtime. */
@@ -22,4 +23,14 @@ export function captureFixture(scenario: CaptureScenario = 'ideal', frame = 0): 
   if (scenario === 'no-face') m.faceCount = 0
   if (scenario === 'mixed') m.mixedChromaDistance = .22
   return m
+}
+
+export function captureFullFixture(scenario: CaptureScenario, id: number) {
+  const profile = resultFixture(scenario === 'post-retake' ? 'retake' : 'indeterminate')
+  const skin = profile.shadowMeasurements.skinDiagnostics
+  const uneven = scenario === 'finalist-none' || scenario === 'finalist-fallback' && id === 4
+  const mediocre = scenario === 'finalist-excellent' && id !== 5
+  skin.consistencyScore = uneven ? .05 : mediocre ? .3 : .9
+  skin.regions.forEach((r, index) => { r.representative.l = .65 + (index === 0 ? uneven ? .2 : mediocre ? .11 : .02 : 0) })
+  return profile
 }

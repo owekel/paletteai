@@ -2,11 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { CAPTURE_CONFIG as C } from '../data/captureConfig'
 import type { CaptureRuntime, CaptureSelection, CaptureSource, CaptureQuality } from '../types/capture'
 import type { ColorProfile } from '../types/colorProfile'
+import type { AnalysisQualityIssue } from '../types/analysisQuality'
 import { CaptureBuffer } from '../services/capture/captureBuffer'
 import { CaptureStability } from '../services/capture/captureStability'
 import { describeCameraError } from '../services/capture/cameraRuntime'
+import { chooseCaptureFinalists } from '../services/capture/captureFinalists'
 
-type Phase = 'opening' | 'live' | 'verifying' | 'review' | 'unavailable'
+type Phase = 'opening' | 'live' | 'choosing' | 'verifying' | 'review' | 'unavailable'
 export function useGuidedCapture(runtime: CaptureRuntime) {
   const videoRef = useRef<HTMLVideoElement>(null)
   const sourceRef = useRef<CaptureSource | null>(null)
@@ -23,6 +25,7 @@ export function useGuidedCapture(runtime: CaptureRuntime) {
   const [image, setImage] = useState<string>()
   const [profile, setProfile] = useState<ColorProfile>()
   const [error, setError] = useState('')
+  const [selectionProblem, setSelectionProblem] = useState<AnalysisQualityIssue>()
   const [paused, setPaused] = useState(false)
 
   async function verify(photo: string, token: number) {
@@ -50,9 +53,10 @@ export function useGuidedCapture(runtime: CaptureRuntime) {
 
   function manual() {
     const source = sourceRef.current
-    if (!source || captureLocked.current) return
+    if (!source || captureLocked.current && phase !== 'choosing') return
     try {
       const photo = source.capture()
+      if (phase === 'choosing') { verification.current?.abort(); captureLocked.current = false }
       finish(photo, { method: 'manual', selectedId: null, frames: buffer.current.summary(), quality,
         reason: 'Manual shutter: the frame at your tap, regardless of live guidance.' })
     } catch { setError('The camera frame isn’t ready yet. Give it a moment and tap again.') }
@@ -62,13 +66,15 @@ export function useGuidedCapture(runtime: CaptureRuntime) {
     mounted.current = true
     const token = ++epoch.current, abort = new AbortController()
     let timer: number | undefined
+    let retryAfter = 0
     captureLocked.current = false; buffer.current.clear(); stability.current = new CaptureStability()
     setPhase('opening'); setError(''); setImage(undefined); setProfile(undefined); setSelection(undefined)
+    setSelectionProblem(undefined)
     setQuality(undefined); setAnalyzer('loading'); setFrames([]); setPaused(false)
     setWindowState(new CaptureStability().update('no-face', 0))
     const current = () => mounted.current && token === epoch.current && !abort.signal.aborted
     const clearWindow = () => { buffer.current.clear(); stability.current.reset(); setFrames([]); setWindowState(new CaptureStability().update('no-face', 0)) }
-    const visibility = () => { if (current()) { setPaused(document.hidden); clearWindow() } }
+    const visibility = () => { if (current()) { setPaused(document.hidden); clearWindow(); if (document.hidden) verification.current?.abort() } }
     document.addEventListener('visibilitychange', visibility)
     async function poll(source: CaptureSource) {
       if (!current() || captureLocked.current) return
@@ -80,7 +86,7 @@ export function useGuidedCapture(runtime: CaptureRuntime) {
           setAnalyzer(observation.analyzer); setQuality(observation.quality)
           // A frame that finishes after the tab was hidden must not restart
           // the stability window that visibilitychange just cancelled.
-          if (observation.quality && !document.hidden) {
+          if (observation.quality && !document.hidden && performance.now() >= retryAfter) {
             const now = performance.now()
             const window = stability.current.update(observation.quality.blocker, now)
             setWindowState(window)
@@ -88,8 +94,35 @@ export function useGuidedCapture(runtime: CaptureRuntime) {
             if (observation.frame) buffer.current.push(observation.frame)
             setFrames(buffer.current.summary())
             if (window.ready) {
-              const best = buffer.current.best(now)
-              if (best) { finish(best.frame.image, best.selection); return }
+              const candidates = buffer.current.candidates(now)
+              if (candidates.length) {
+                captureLocked.current = true
+                const selectionAbort = new AbortController()
+                verification.current = selectionAbort
+                setPhase('choosing'); setError(''); setSelection(undefined)
+                setSelectionProblem(undefined)
+                buffer.current.clear(); stability.current.reset()
+                try {
+                  const result = await chooseCaptureFinalists(candidates, runtime.verify, selectionAbort.signal,
+                    selected => { if (current()) setSelection(selected) })
+                  if (!current()) return
+                  setSelection(result.selection)
+                  if (result.winner) {
+                    ++epoch.current
+                    source.stop(); sourceRef.current = null
+                    setImage(result.winner.frame.image); setProfile(result.winner.profile); setPhase('review')
+                    return
+                  }
+                  setSelectionProblem(result.problem)
+                  retryAfter = performance.now() + C.finalists.retryDelayMs
+                } catch {
+                  if (!current()) return
+                  // Hidden-tab cancellation resumes with a fresh stable window.
+                  if (!selectionAbort.signal.aborted) setError('We couldn’t check this set. Hold still for another moment, or take a photo yourself.')
+                }
+                if (!current()) return
+                captureLocked.current = false; clearWindow(); setPhase('live')
+              }
             }
           } else clearWindow()
         }
@@ -112,6 +145,6 @@ export function useGuidedCapture(runtime: CaptureRuntime) {
     }
   }, [attempt, runtime])
 
-  return { videoRef, phase, analyzer, quality, windowState, frames, selection, image, profile, error, paused,
+  return { videoRef, phase, analyzer, quality, windowState, frames, selection, selectionProblem, image, profile, error, paused,
     manual, retake: () => setAttempt(n => n + 1), retryVerification: () => { if (image) void verify(image, ++epoch.current) } }
 }

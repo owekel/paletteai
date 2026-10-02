@@ -4,8 +4,8 @@ import ResultsPage from '../components/ResultsPage'
 import type { CaptureRuntime } from '../types/capture'
 import type { ColorProfile } from '../types/colorProfile'
 import { evaluateCaptureQuality } from '../services/capture/captureQuality'
-import { CAPTURE_SCENARIOS, captureFixture, type CaptureScenario } from './captureFixtures'
-import { FIXTURE_IMAGE, resultFixture } from './resultsFixtures'
+import { CAPTURE_SCENARIOS, captureFixture, captureFullFixture, type CaptureScenario } from './captureFixtures'
+import { FIXTURE_IMAGE } from './resultsFixtures'
 import { probeCapturePhoto } from './capturePhotoProbe'
 import { browserCaptureRuntime } from '../services/capture/cameraRuntime'
 
@@ -30,13 +30,19 @@ export default function CapturePreview() {
         if (scenario === 'guidance-unavailable') return { analyzer: 'unavailable' }
         const quality = evaluateCaptureQuality(photo?.metrics ?? captureFixture(scenario, id))
         id++
-        return { analyzer: 'ready', quality, frame: quality.blocker ? undefined : { id, timestamp: performance.now(), quality, image: photo?.image ?? FIXTURE_IMAGE } }
+        return { analyzer: 'ready', quality, frame: quality.blocker ? undefined : { id, timestamp: performance.now(), quality, image: photo?.image ?? `${FIXTURE_IMAGE}#capture-frame-${id}` } }
       } }
     },
     async verify(image, signal) {
       if (photo) return browserCaptureRuntime.verify(image, signal)
+      // Short, cancellable fixture delay makes the real choosing state visible.
+      await new Promise<void>((resolve, reject) => {
+        const cancel = () => { clearTimeout(timer); signal.removeEventListener('abort', cancel); reject(new DOMException('Cancelled', 'AbortError')) }
+        const timer = setTimeout(() => { signal.removeEventListener('abort', cancel); resolve() }, 450)
+        if (signal.aborted) cancel(); else signal.addEventListener('abort', cancel, { once: true })
+      })
       if (scenario === 'verification-error') throw new Error('Fixture verification failure')
-      return resultFixture(scenario === 'post-retake' ? 'retake' : 'indeterminate')
+      return captureFullFixture(scenario, Number(image.match(/#capture-frame-(\d+)$/)?.[1] ?? 0))
     },
   }), [scenario, run, photo])
   return <>

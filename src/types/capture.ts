@@ -1,4 +1,5 @@
 import type { ColorProfile } from './colorProfile'
+import type { AnalysisQualityIssue } from './analysisQuality'
 
 export type CaptureIssue = 'no-face' | 'multiple-faces' | 'closer' | 'back' | 'center' | 'pose' | 'visibility' | 'bright' | 'dark' | 'uneven' | 'mixed' | 'motion'
 export interface CaptureRegion {
@@ -71,4 +72,20 @@ export interface CaptureSelection {
   reason: string
   frames: { id: number; timestamp: number; score: number; subscores: CaptureSubscores }[]
   quality?: CaptureQuality
+  bufferedCandidateCount?: number
+  finalists?: CaptureFinalistDiagnostic[]
+  selectionTimedOut?: boolean
+}
+
+export interface CaptureFinalistDiagnostic {
+  id: number
+  lightweightScore: number
+  detailedScore: number | null
+  durationMs: number
+  passed: boolean
+  skinConsistency: number | null
+  maximumRegionalDeltaL: number | null
+  regions: { name: string; lightness: number; pixels: number; reliability: number }[]
+  subscores?: Record<keyof typeof import('../data/captureConfig').CAPTURE_CONFIG.finalists.weights, number>
+  rejectionReasons: AnalysisQualityIssue[]
 }
