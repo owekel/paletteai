@@ -45,7 +45,14 @@ export default function App() {
       {screen === 'landing' && <LandingPage onStart={handleStart} />}
 
       {screen === 'upload' && (
-        <CaptureScreen onImageReady={handleImageReady} errorMessage={analysisError} />
+        <CaptureScreen onImageReady={handleImageReady} errorMessage={analysisError}
+          onCancel={() => { setAnalysisError(null); setScreen('landing') }}
+          onAnalyzedImage={(image, result) => {
+            setAnalysisError(null)
+            setImageDataUrl(image)
+            setProfile(result)
+            setScreen('results')
+          }} />
       )}
 
       {screen === 'loading' && imageDataUrl && (

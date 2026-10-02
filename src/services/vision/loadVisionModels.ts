@@ -14,6 +14,7 @@
 // model files are fetched.
 
 import { FilesetResolver, FaceLandmarker, ImageSegmenter } from '@mediapipe/tasks-vision'
+import { CAPTURE_CONFIG } from '../../data/captureConfig'
 
 type WasmFileset = Awaited<ReturnType<typeof FilesetResolver.forVisionTasks>>
 
@@ -89,6 +90,18 @@ export function getHairSegmenter(): Promise<ImageSegmenter> {
   })
   hairSegmenterPromise = promise
   return promise
+}
+
+/** Owned and closed by the camera session. Never reconfigure the still-image model. */
+export async function createCaptureLandmarker(): Promise<FaceLandmarker> {
+  return FaceLandmarker.createFromOptions(await getFileset(), {
+    baseOptions: { modelAssetPath: FACE_LANDMARKER_MODEL_URL, delegate: 'CPU' },
+    runningMode: 'IMAGE',
+    numFaces: 2,
+    minFaceDetectionConfidence: CAPTURE_CONFIG.landmarkConfidence,
+    minFacePresenceConfidence: CAPTURE_CONFIG.landmarkConfidence,
+    outputFaceBlendshapes: false,
+  })
 }
 
 // Runs a promise with a hard time limit, so a stuck model download or a

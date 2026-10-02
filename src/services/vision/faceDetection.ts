@@ -155,7 +155,11 @@ function irisSampleRegion(
 export async function detectFaceRegions(image: HTMLImageElement | HTMLVideoElement): Promise<FaceRegions | null> {
   const landmarker = await getFaceLandmarker()
   const result = landmarker.detect(image)
-  const points = result.faceLandmarks?.[0]
+  return faceRegionsFromLandmarks(result.faceLandmarks?.[0])
+}
+
+/** Shared geometry only; capture uses its own multi-face model instance. */
+export function faceRegionsFromLandmarks(points?: { x: number; y: number }[]): FaceRegions | null {
 
   // Need the full 478-point set (including the 10 iris points) to do
   // anything useful — anything less means no reliable face was found.

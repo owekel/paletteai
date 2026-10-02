@@ -1,0 +1,46 @@
+.guided-capture { animation: result-enter 300ms ease-out; }
+.capture-layout { display: grid; grid-template-columns: minmax(0, 1fr); gap: 1.75rem; }
+.capture-view { position: relative; margin: auto; width: 100%; max-width: 420px; aspect-ratio: 3 / 4; overflow: hidden; border-radius: 1.5rem; background: #333b35; box-shadow: 0 18px 55px -32px #1c1a1766; transition: box-shadow 400ms; }
+.capture-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.capture-holding { box-shadow: 0 0 0 3px #66847480, 0 18px 55px -32px #1c1a1766; }
+.capture-guide { position: absolute; inset: 0; width: 100%; height: 100%; color: #fff9; pointer-events: none; transition: color 400ms; }
+.capture-holding .capture-guide { color: #e8f4e6; }
+.capture-camera-label { position: absolute; z-index: 1; top: 1rem; left: 1rem; display: flex; align-items: center; gap: .5rem; border: 1px solid #ffffff24; border-radius: 2rem; background: #1c1a1766; backdrop-filter: blur(12px); padding: .5rem .8rem; color: white; font-size: 10px; letter-spacing: .03em; }
+.capture-dot { width: 5px; height: 5px; border-radius: 50%; background: #fff8; }
+.capture-dot-live { background: #b4d1b3; }
+.capture-cover { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 2rem; background: #243129d9; color: #f3efe6; }
+.capture-panel { min-width: 0; }
+.capture-mobile-guidance { display: none; }
+.capture-eyebrow { font-size: 10px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; color: #6e2a35; }
+.capture-instruction { min-height: 142px; }
+.capture-progress { transition: width 230ms linear; border-radius: inherit; }
+.capture-shutter { display: grid; place-items: center; width: 64px; height: 64px; flex-shrink: 0; border: 1px solid #1c1a1740; border-radius: 50%; padding: 5px; transition: transform 160ms, opacity 200ms; }
+.capture-shutter > span { display: grid; place-items: center; width: 100%; height: 100%; border-radius: 50%; background: #1c1a17; color: #f3efe6; }
+.capture-shutter:hover:not(:disabled) { transform: scale(1.045); }
+.capture-shutter:active:not(:disabled) { transform: scale(.96); }
+.capture-shutter:disabled { opacity: .35; cursor: wait; }
+.capture-primary, .capture-secondary { display: inline-flex; justify-content: center; align-items: center; gap: .7rem; min-height: 48px; padding: .85rem 1rem; border: 1px solid #1c1a17; border-radius: 999px; font-size: 13px; font-weight: 500; transition: background 180ms, color 180ms; }
+.capture-primary { background: #1c1a17; color: #f3efe6; }
+.capture-primary:hover:not(:disabled) { background: #6e2a35; border-color: #6e2a35; }
+.capture-secondary:hover { background: #fff8; }
+.capture-primary:disabled { background: #ddd5c7; border-color: #ddd5c7; color: #6b655c; cursor: not-allowed; }
+.capture-back { display: flex; align-items: center; gap: .5rem; padding: .6rem 0 .6rem 1rem; font-size: 12px; color: #6b655c; }
+.capture-spinner { width: 20px; height: 20px; flex-shrink: 0; border: 1.5px solid #ffffff40; border-top-color: white; border-radius: 50%; animation: capture-spin 1s linear infinite; }
+.capture-spinner-dark { width: 15px; height: 15px; border-color: #1c1a1730; border-top-color: #1c1a17; }
+@keyframes capture-spin { to { transform: rotate(360deg); } }
+@media (min-width: 768px) {
+  .capture-layout { grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr); gap: clamp(2rem, 6vw, 6rem); align-items: start; }
+  .capture-view { margin-left: 0; }
+  .capture-panel { padding-top: 1.5rem; max-width: 380px; }
+}
+@media (max-width: 767px) {
+  .guided-capture { padding-bottom: 130px; }
+  .guided-capture header { margin-top: 1.5rem; margin-bottom: 1.25rem; }
+  .guided-capture header h1 { font-size: 2rem; }
+  .capture-view { max-width: min(100%, 31.5svh, 340px); }
+  .capture-panel { margin: auto; width: 100%; max-width: 420px; }
+  .capture-instruction { display: none; }
+  .capture-mobile-guidance { display: block; position: absolute; inset: auto 0 0; padding: 2.5rem 1rem 1rem; text-align: center; color: white; background: linear-gradient(transparent, #13251eda); }
+  .capture-shutter-panel { position: fixed; z-index: 10; bottom: max(12px, env(safe-area-inset-bottom)); left: 1rem; right: 1rem; margin: 0 auto; max-width: 420px; padding: .65rem 1rem; background: #f3efe6f5; backdrop-filter: blur(12px); box-shadow: 0 5px 30px #1c1a1720; }
+  .capture-shutter { width: 54px; height: 54px; }
+}
