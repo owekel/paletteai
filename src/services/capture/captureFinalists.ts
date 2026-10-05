@@ -25,7 +25,7 @@ const lightingIssue: AnalysisQualityIssue = { code: 'capture-regional-lighting',
 const verificationIssue: AnalysisQualityIssue = { code: 'capture-check-unavailable', title: 'We couldn’t check this set of photos',
   guidance: 'Hold still for another moment, or use the shutter to take a photo yourself.' }
 
-export function evaluateCaptureFinalist(frame: CaptureFrame, e: CapturePhotoEvidence): CaptureFinalistDiagnostic {
+export function evaluateCaptureFinalist(frame: Pick<CaptureFrame, 'id'> & { quality?: CaptureFrame['quality'] }, e: CapturePhotoEvidence): CaptureFinalistDiagnostic {
   const config = C.finalists
   const required = ['forehead', 'leftCheek', 'rightCheek']
   const regions = e.skin.regions.filter(r => required.includes(r.name))
@@ -39,28 +39,30 @@ export function evaluateCaptureFinalist(frame: CaptureFrame, e: CapturePhotoEvid
   const poorLightingConsistency = e.skin.likelyCause === 'uneven-lighting'
     && e.skin.consistencyScore < config.poorSkinConsistency
     && delta !== null && delta > config.inconsistentLightingDeltaL
-  if (delta !== null && delta > config.maximumRegionalDeltaL || poorLightingConsistency) rejectionReasons.push(lightingIssue)
+  const corroboratedMixedLighting = e.lighting.mixedLightingSuspected && delta !== null
+    && delta > config.mixedLightingDeltaL && e.skin.consistencyScore < config.mixedLightingSkinConsistency
+  if (delta !== null && delta > config.maximumRegionalDeltaL || poorLightingConsistency || corroboratedMixedLighting) rejectionReasons.push(lightingIssue)
   if (e.imageQuality.status !== 'usable' && !rejectionReasons.length) rejectionReasons.push(verificationIssue)
   const skinRetention = regions.reduce((sum, r) => sum + r.retainedPixelCount, 0)
     / Math.max(1, regions.reduce((sum, r) => sum + r.sourcePixelCount, 0))
   const hair = clamp(e.features.hair.sampleSize / 100) * clamp(e.features.hair.reliability / 0.5)
   const eyes = clamp(e.features.eyes.sampleSize / 12) * clamp(e.features.eyes.reliability / 0.5)
-  const m = frame.quality.metrics, g = C.geometry
+  const m = frame.quality?.metrics, g = C.geometry
   const subscores = {
-    lighting: delta === null ? 0 : clamp(1 - (delta - config.goodRegionalDeltaL) / (config.maximumRegionalDeltaL - config.goodRegionalDeltaL)),
+    lighting: delta === null ? 0 : clamp(1 - (delta - config.goodRegionalDeltaL) / (config.maximumRegionalDeltaL - config.goodRegionalDeltaL)) ** 2,
     skinConsistency: clamp(e.skin.consistencyScore),
     exposure: 0.7 * clamp(1 - e.features.skin.clippedFraction / 0.25) + 0.3 * clamp(e.exposure.reliability),
     sampling: 0.7 * clamp(usable.length / 3) * clamp(skinRetention) + 0.3 * Math.max(hair, eyes),
     mixedLighting: e.lighting.mixedLightingSuspected ? clamp(1 - (e.lighting.spatialDisagreement ?? 0.04) / 0.08) : 1,
-    sharpness: frame.quality.subscores.sharpness,
-    steadiness: frame.quality.subscores.steadiness,
-    framing: frame.quality.subscores.framing,
-    pose: clamp(1 - Math.max(Math.abs(m.rollDegrees) / g.maxRollDegrees, m.yawRatio / g.maxYawRatio)),
-    landmarks: frame.quality.subscores.landmarks,
+    sharpness: frame.quality?.subscores.sharpness ?? 0,
+    steadiness: frame.quality?.subscores.steadiness ?? 0,
+    framing: frame.quality?.subscores.framing ?? 0,
+    pose: m ? clamp(1 - Math.max(Math.abs(m.rollDegrees) / g.maxRollDegrees, m.yawRatio / g.maxYawRatio)) : 0,
+    landmarks: frame.quality?.subscores.landmarks ?? 0,
   }
   const detailedScore = (Object.keys(config.weights) as (keyof typeof config.weights)[])
     .reduce((sum, key) => sum + subscores[key] * config.weights[key], 0)
-  return { id: frame.id, lightweightScore: frame.quality.score, detailedScore, durationMs: 0,
+  return { id: frame.id, lightweightScore: frame.quality?.score ?? 0, detailedScore, durationMs: 0,
     passed: rejectionReasons.length === 0, skinConsistency: e.skin.consistencyScore, maximumRegionalDeltaL: delta,
     regions: regions.map(r => ({ name: r.name, lightness: r.representative.l, pixels: r.retainedPixelCount, reliability: r.reliability })),
     subscores, rejectionReasons }

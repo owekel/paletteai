@@ -27,6 +27,7 @@ export function useGuidedCapture(runtime: CaptureRuntime) {
   const [error, setError] = useState('')
   const [selectionProblem, setSelectionProblem] = useState<AnalysisQualityIssue>()
   const [paused, setPaused] = useState(false)
+  const [failedSelections, setFailedSelections] = useState(0)
 
   async function verify(photo: string, token: number) {
     verification.current?.abort()
@@ -114,6 +115,7 @@ export function useGuidedCapture(runtime: CaptureRuntime) {
                     return
                   }
                   setSelectionProblem(result.problem)
+                  setFailedSelections(n => n + 1)
                   retryAfter = performance.now() + C.finalists.retryDelayMs
                 } catch {
                   if (!current()) return
@@ -145,6 +147,6 @@ export function useGuidedCapture(runtime: CaptureRuntime) {
     }
   }, [attempt, runtime])
 
-  return { videoRef, phase, analyzer, quality, windowState, frames, selection, selectionProblem, image, profile, error, paused,
+  return { videoRef, phase, analyzer, quality, windowState, frames, selection, selectionProblem, image, profile, error, paused, failedSelections,
     manual, retake: () => setAttempt(n => n + 1), retryVerification: () => { if (image) void verify(image, ++epoch.current) } }
 }

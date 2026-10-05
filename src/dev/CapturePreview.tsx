@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import CameraCapture from '../components/CameraCapture'
+import PrecisionCapture from '../components/PrecisionCapture'
 import ResultsPage from '../components/ResultsPage'
 import type { CaptureRuntime } from '../types/capture'
 import type { ColorProfile } from '../types/colorProfile'
@@ -13,24 +14,26 @@ import { browserCaptureRuntime } from '../services/capture/cameraRuntime'
 export default function CapturePreview() {
   const [scenario, setScenario] = useState<CaptureScenario>('off-center')
   const [run, setRun] = useState(0)
+  const [precision, setPrecision] = useState(new URLSearchParams(location.search).get('mode') === 'precision')
   const [result, setResult] = useState<{ image: string; profile: ColorProfile }>()
   const [notice, setNotice] = useState('')
   const [photo, setPhoto] = useState<Awaited<ReturnType<typeof probeCapturePhoto>>>()
   const probe = useRef<AbortController>()
   useEffect(() => () => probe.current?.abort(), [])
-  const runtime = useMemo<CaptureRuntime>(() => ({
+  const runtime = useMemo<CaptureRuntime>(() => { let moments = 0; return ({
     fixtureImage: photo?.image ?? FIXTURE_IMAGE,
     async open(_video, signal) {
       if (scenario === 'permission-denied') throw new DOMException('Fixture permission denial', 'NotAllowedError')
-      let id = 0, stopped = false
+      let id = 0, stopped = false, moment = 0
       const stop = () => { stopped = true; signal.removeEventListener('abort', stop) }
       signal.addEventListener('abort', stop, { once: true })
-      return { stop, capture: () => photo?.image ?? FIXTURE_IMAGE, async sample() {
+      return { stop, capture: () => photo?.image ?? `${FIXTURE_IMAGE}#capture-moment-${moment}-frame-${id}`, async sample() {
         if (stopped) throw new Error('Fixture stopped')
+        if (!moment) moment = ++moments
         if (scenario === 'guidance-unavailable') return { analyzer: 'unavailable' }
         const quality = evaluateCaptureQuality(photo?.metrics ?? captureFixture(scenario, id))
         id++
-        return { analyzer: 'ready', quality, frame: quality.blocker ? undefined : { id, timestamp: performance.now(), quality, image: photo?.image ?? `${FIXTURE_IMAGE}#capture-frame-${id}` } }
+        return { analyzer: 'ready', quality, frame: quality.blocker ? undefined : { id, timestamp: performance.now(), quality, image: photo?.image ?? `${FIXTURE_IMAGE}#capture-moment-${moment}-frame-${id}` } }
       } }
     },
     async verify(image, signal) {
@@ -42,12 +45,13 @@ export default function CapturePreview() {
         if (signal.aborted) cancel(); else signal.addEventListener('abort', cancel, { once: true })
       })
       if (scenario === 'verification-error') throw new Error('Fixture verification failure')
-      return captureFullFixture(scenario, Number(image.match(/#capture-frame-(\d+)$/)?.[1] ?? 0))
+      return captureFullFixture(scenario, Number(image.match(/-frame-(\d+)$/)?.[1] ?? 0), Number(image.match(/#capture-moment-(\d+)/)?.[1] ?? 1))
     },
-  }), [scenario, run, photo])
+  }) }, [scenario, run, photo, precision])
   return <>
     <aside className="flex flex-wrap items-center justify-center gap-3 bg-ink px-4 py-3 text-xs text-paper">
       <span>Developer preview · {photo ? 'real still-photo measurements; simulated camera timing' : 'simulated camera, metrics and analysis'}</span>
+      <label><input type="checkbox" checked={precision} onChange={e => { setPrecision(e.target.checked); setResult(undefined) }} /> Three-photo precision</label>
       <label>Scenario <select disabled={!!photo} aria-label="Capture test scenario" className="rounded border border-white/30 bg-ink p-1" value={scenario} onChange={e => { setScenario(e.target.value as CaptureScenario); setResult(undefined); setNotice('') }}>{CAPTURE_SCENARIOS.map(s => <option key={s}>{s}</option>)}</select></label>
       <label>Local photo probe <input className="max-w-[190px]" aria-label="Local capture test photo" type="file" accept="image/png,image/jpeg" onChange={event => {
         const file = event.target.files?.[0]; if (!file) return
@@ -60,6 +64,6 @@ export default function CapturePreview() {
       <a className="underline" href="/">Use a real camera →</a>
       {notice && <span role="status">{notice}</span>}
     </aside>
-    {result ? <ResultsPage profile={result.profile} capturedImageDataUrl={result.image} onStartOver={() => setResult(undefined)} /> : <CameraCapture runtime={runtime} onAnalyzedImage={(image, profile) => setResult({ image, profile })} onCancel={() => setNotice('Back navigation requested')} onUseUploadInstead={() => setNotice('Upload fallback requested')} />}
+    {result ? <ResultsPage profile={result.profile} capturedImageDataUrl={result.image} onStartOver={() => setResult(undefined)} /> : precision ? <PrecisionCapture key={`${scenario}-${run}-${!!photo}`} runtime={runtime} onAnalyzedImage={(image, profile) => setResult({ image, profile })} onCancel={() => setNotice('Back navigation requested')} onUseUploadInstead={() => setNotice('Upload fallback requested')} /> : <CameraCapture runtime={runtime} onAnalyzedImage={(image, profile) => setResult({ image, profile })} onCancel={() => setNotice('Back navigation requested')} onUseUploadInstead={() => setNotice('Upload fallback requested')} />}
   </>
 }

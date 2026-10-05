@@ -1,7 +1,7 @@
 import type { CaptureMetrics, CaptureRegion } from '../types/capture'
 import { resultFixture } from './resultsFixtures'
 
-export const CAPTURE_SCENARIOS = ['ideal', 'finalist-fallback', 'finalist-excellent', 'finalist-none', 'uneven', 'dark', 'bright', 'moving', 'off-center', 'too-far', 'too-close', 'tilted', 'covered', 'multiple-faces', 'no-face', 'mixed', 'ready-then-moving', 'guidance-unavailable', 'permission-denied', 'post-retake', 'verification-error'] as const
+export const CAPTURE_SCENARIOS = ['ideal', 'precision-strong', 'precision-temperature', 'precision-outlier', 'precision-conflict', 'precision-reacquire', 'precision-two', 'finalist-fallback', 'finalist-excellent', 'finalist-none', 'uneven', 'dark', 'bright', 'moving', 'off-center', 'too-far', 'too-close', 'tilted', 'covered', 'multiple-faces', 'no-face', 'mixed', 'ready-then-moving', 'guidance-unavailable', 'permission-denied', 'post-retake', 'verification-error'] as const
 export type CaptureScenario = typeof CAPTURE_SCENARIOS[number]
 
 /** Synthetic INPUT metrics only. Never enters the production capture runtime. */
@@ -25,10 +25,14 @@ export function captureFixture(scenario: CaptureScenario = 'ideal', frame = 0): 
   return m
 }
 
-export function captureFullFixture(scenario: CaptureScenario, id: number) {
-  const profile = resultFixture(scenario === 'post-retake' ? 'retake' : 'indeterminate')
+export function captureFullFixture(scenario: CaptureScenario, id: number, moment = 1) {
+  const profile = resultFixture(scenario === 'post-retake' ? 'retake' : scenario.startsWith('precision-') ? 'strong' : 'indeterminate')
+  if (scenario === 'precision-temperature') { profile.shadowMeasurements.temperature.reliability = .2; profile.shadowMeasurements.temperature.score = [-.5, .2, -.1][(moment - 1) % 3] }
+  if (scenario === 'precision-outlier' && moment === 3) { profile.shadowMeasurements.value.score = .8; profile.shadowMeasurements.value.reliability = .65 }
+  if (scenario === 'precision-conflict') for (const d of ['temperature', 'value', 'chroma'] as const) profile.shadowMeasurements[d].score = [-.8, .8, 0][(moment - 1) % 3]
   const skin = profile.shadowMeasurements.skinDiagnostics
   const uneven = scenario === 'finalist-none' || scenario === 'finalist-fallback' && id === 4
+    || scenario === 'precision-two' && moment >= 3 || scenario === 'precision-reacquire' && moment === 3 && id < 12
   const mediocre = scenario === 'finalist-excellent' && id !== 5
   skin.consistencyScore = uneven ? .05 : mediocre ? .3 : .9
   skin.regions.forEach((r, index) => { r.representative.l = .65 + (index === 0 ? uneven ? .2 : mediocre ? .11 : .02 : 0) })

@@ -8,6 +8,7 @@ export type Depth = 'light' | 'medium' | 'deep'
 export type Contrast = 'low' | 'medium' | 'high'
 
 export interface ColorProfile {
+  precision?: import('./precision').PrecisionDiagnostics
   hairColor: string
   hairColorHex: string
   eyeColor: string

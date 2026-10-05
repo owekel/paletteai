@@ -6,6 +6,7 @@ import type { SeasonAnalysis, ProfileDimension } from '../types/seasonAnalysis'
 import type { ShadowSeasonMeasurements } from '../types/seasonMeasurements'
 import type { ShadowSeasonClassification, ShadowSeasonDimension } from '../types/shadowSeasonClassification'
 import { assessAnalysisQuality } from './analysisQualityGate'
+import type { SeasonSensitivity } from '../types/precision'
 
 const LABELS: Record<ShadowSeasonDimension, string> = {
   temperature: 'Undertone', value: 'Depth', chroma: 'Colour intensity', contrast: 'Contrast',
@@ -37,10 +38,18 @@ function describe(id: ShadowSeasonDimension, score: number): [string, string] {
 export function buildSeasonAnalysis(
   measurements: ShadowSeasonMeasurements,
   classification: ShadowSeasonClassification,
+  sensitivity?: SeasonSensitivity,
 ): SeasonAnalysis {
   const quality = assessAnalysisQuality(measurements, classification)
+  if (sensitivity && quality.imageQuality.status === 'usable') {
+    quality.canPresentSpecificSeason = sensitivity.state === 'specific'
+    quality.status = sensitivity.state === 'specific' ? 'full' : 'constrained'
+    quality.classificationCertainty = { status: sensitivity.state === 'specific' ? 'full' : sensitivity.state === 'candidate-group' ? 'constrained' : 'indeterminate',
+      broadProfileDescription: 'Precision analysis: plausible-range sensitivity',
+      candidateSeasonLabels: sensitivity.wins.filter(w => sensitivity.candidateIds.includes(w.id)).map(w => w.label) }
+  }
   const dimensions: ProfileDimension[] = (Object.keys(LABELS) as ShadowSeasonDimension[]).map(id => {
-    const resolved = quality.measurementReliability.dimensions[id].sufficientlyReliable
+    const resolved = sensitivity ? sensitivity.supportedDimensions.includes(id) : quality.measurementReliability.dimensions[id].sufficientlyReliable
     const [value, description] = describe(id, measurements[id].score)
     return { id, label: LABELS[id], resolved, value: resolved ? value : 'Still open',
       recommendation: resolved ? dimensionRecommendation(id, measurements[id].score) : undefined,
@@ -49,13 +58,17 @@ export function buildSeasonAnalysis(
         : `This photo does not settle your ${UNRESOLVED[id]}.` }
   })
   const unresolved = dimensions.filter(d => !d.resolved).map(d => UNRESOLVED[d.id])
-  const [top, runner] = classification.rankings
+  const ordered = sensitivity ? sensitivity.wins.map(w => classification.rankings.find(c => c.id === w.id)!) : classification.rankings
+  const top = ordered[0]
+  const runner = sensitivity && sensitivity.wins[1].share === 0
+    ? classification.rankings.find(c => c.id !== top.id)! : ordered[1]
   const ratio = runner.affinityProbability > 0 ? top.affinityProbability / runner.affinityProbability : 1
-  const hasMajorEvidence = quality.measurementReliability.reliableMajorDimensions.length > 0
+  const hasMajorEvidence = dimensions.some(d => d.resolved && d.id !== 'contrast')
   const separated = ratio >= policy.minimumLeadingAffinityRatio
   const status = quality.imageQuality.status === 'retake-required' ? 'retake-required'
-    : quality.canPresentSpecificSeason && separated ? 'specific' : 'constrained'
+    : quality.canPresentSpecificSeason && (sensitivity || separated) ? 'specific' : 'constrained'
   const potentialCandidates = status === 'retake-required' ? [] : status === 'specific' ? [top]
+    : sensitivity ? ordered.filter(c => sensitivity.candidateIds.includes(c.id))
     : !hasMajorEvidence ? []
       : classification.rankings.filter((c, i) =>
         i < policy.minimumCandidates || c.affinityProbability >= top.affinityProbability * policy.candidateAffinityRatio)
@@ -80,10 +93,10 @@ export function buildSeasonAnalysis(
         ? 'These qualities give you a useful starting direction, even without a season label. Begin with the colours below and use the comparisons to explore the details.'
         : 'Your colouring has something in common with several seasons. Start with colours that have the strongest support across those palettes, then compare the finer differences on your photo.'
   const consensus = status === 'constrained' ? buildConsensusPalette(measurements,
-    reliableDimensions.length === 0 ? [] : candidates.length ? candidates : classification.rankings,
+    candidates.length ? candidates : reliableDimensions.length === 0 ? [] : classification.rankings,
     reliableDimensions.map(d => d.id)) : undefined
   const palette = status === 'specific' ? SEASON_PALETTES[top.id] : consensus?.palette ?? assemblePalette([], [])
-  const paletteMode = status === 'specific' ? 'season' : reliableDimensions.length > 0 ? 'consensus' : 'starter'
+  const paletteMode = status === 'specific' ? 'season' : reliableDimensions.length > 0 || candidates.length > 0 ? 'consensus' : 'starter'
   return {
     status, resultKind, quality, title, summary, dimensions, candidates, unresolved, palette, paletteMode,
     recommendations: consensus?.recommendations,
@@ -95,6 +108,7 @@ export function buildSeasonAnalysis(
         : 'A balanced set of everyday shades drawn from several palettes. Try them as reference points; the photo has not established a personal colour direction yet.',
     decision: {
       reason: status === 'retake-required' ? 'technical-image-failure'
+        : sensitivity ? `precision-sensitivity-${sensitivity.state}`
         : status === 'specific' ? 'reliable-major-dimensions-and-separated-leader'
           : !hasMajorEvidence ? 'insufficient-major-dimension-evidence'
             : !quality.canPresentSpecificSeason ? 'unresolved-major-dimensions' : 'close-prototype-tie',

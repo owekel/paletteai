@@ -1,6 +1,6 @@
 /** Provisional photographic limits, independent of season scores/reliabilities. */
 export const CAPTURE_CONFIG = {
-  version: 'guided-capture-v2',
+  version: 'guided-capture-v3',
   previewWidth: 360,
   previewHeight: 480,
   captureLongEdge: 1280,
@@ -23,6 +23,8 @@ export const CAPTURE_CONFIG = {
     maximumRegionalDeltaL: 0.14,
     poorSkinConsistency: 0.15,
     inconsistentLightingDeltaL: 0.10,
+    mixedLightingDeltaL: 0.09,
+    mixedLightingSkinConsistency: 0.55,
     weights: { lighting: 0.30, skinConsistency: 0.12, exposure: 0.16, sampling: 0.12, mixedLighting: 0.08,
       sharpness: 0.08, steadiness: 0.04, framing: 0.04, pose: 0.03, landmarks: 0.03 },
   },

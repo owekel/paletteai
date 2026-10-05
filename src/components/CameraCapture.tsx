@@ -1,5 +1,8 @@
+import { useEffect, useRef } from 'react'
 import type { ColorProfile } from '../types/colorProfile'
 import type { CaptureRuntime } from '../types/capture'
+import type { PrecisionCaptureRecord } from '../types/precision'
+import { capturePhotoEvidence, evaluateCaptureFinalist } from '../services/capture/captureFinalists'
 import { useGuidedCapture } from '../hooks/useGuidedCapture'
 import { browserCaptureRuntime } from '../services/capture/cameraRuntime'
 import { CAPTURE_GUIDANCE } from '../services/capture/captureQuality'
@@ -12,9 +15,11 @@ interface CameraCaptureProps {
   onCancel: () => void
   errorMessage?: string | null
   runtime?: CaptureRuntime
+  precision?: { index: number; savedSlots: number[]; onAccepted: (record: PrecisionCaptureRecord) => void;
+    onFailed: () => void; onUseTwo?: () => void }
 }
 
-export default function CameraCapture({ onAnalyzedImage, onUseUploadInstead, onCancel, errorMessage, runtime = browserCaptureRuntime }: CameraCaptureProps) {
+export default function CameraCapture({ onAnalyzedImage, onUseUploadInstead, onCancel, errorMessage, runtime = browserCaptureRuntime, precision }: CameraCaptureProps) {
   const capture = useGuidedCapture(runtime)
   const { phase, image, profile, windowState, analyzer } = capture
   const reviewing = phase === 'verifying' || phase === 'review'
@@ -27,15 +32,43 @@ export default function CameraCapture({ onAnalyzedImage, onUseUploadInstead, onC
   const title = capture.paused ? 'Ready when you are' : choosing ? 'Choosing the best frame…' : problem ? problem.title : analyzer === 'loading' ? 'Getting ready' : analyzer === 'unavailable' ? 'You’re in control' : holding ? 'Hold still' : guide.title
   const detail = capture.paused ? 'Return to the camera to begin again.' : choosing ? 'A quick check of the light and detail in your recent photos.' : problem ? problem.guidance : analyzer === 'loading' ? 'Preparing your live guidance. You can already take a photo.' : analyzer === 'unavailable' ? 'Live guidance is unavailable. Take a photo when you’re ready; we’ll check it afterward.' : holding ? 'The light and framing look good. Taking your photo in a moment.' : guide.detail
   const debug = import.meta.env.DEV && new URLSearchParams(location.search).get('debug') === 'capture'
+  const handledProfile = useRef<ColorProfile>(), seenFailures = useRef(0)
+  useEffect(() => {
+    if (precision && capture.failedSelections > seenFailures.current) {
+      seenFailures.current = capture.failedSelections; precision.onFailed()
+    }
+  }, [capture.failedSelections, precision])
+  useEffect(() => {
+    if (!precision || phase !== 'review' || !profile || !image || handledProfile.current === profile) return
+    handledProfile.current = profile
+    const selected = capture.selection
+    if (!selected) return
+    // Manual capture keeps its override, but must pass the same full-photo
+    // technical rules before contributing to a precision profile.
+    const finalist = selected.method === 'auto' ? selected.finalists?.find(f => f.id === selected.selectedId)
+      : evaluateCaptureFinalist({ id: 0, quality: capture.quality }, capturePhotoEvidence(profile))
+    if (usable && finalist?.passed) {
+      const selection = selected.method === 'manual' ? { ...selected, finalists: [finalist], reason: 'Manual frame passed precision full-photo validation.' } : selected
+      precision.onAccepted({ image, profile, selection, quality: finalist.detailedScore ?? 0 })
+    } else {
+      precision.onFailed()
+      // Preserve the rejected review and its actionable reason; only this
+      // capture needs replacement, never the already accepted photos.
+    }
+  }, [precision, phase, profile, image, usable, capture.selection, capture.quality])
+  const precisionManualDiagnostic = precision && profile && capture.selection?.method === 'manual'
+    ? evaluateCaptureFinalist({ id: 0, quality: capture.quality }, capturePhotoEvidence(profile)) : undefined
+  const precisionRejected = precision && phase === 'review' && (!usable || !precisionManualDiagnostic?.passed && capture.selection?.method === 'manual')
   return <main className="guided-capture mx-auto max-w-6xl px-5 pb-10 pt-6 text-ink sm:px-10 sm:pb-16 sm:pt-9">
     <nav className="flex items-center justify-between" aria-label="Capture navigation">
       <p className="font-display text-2xl tracking-tight">PaletteAI<span className="text-accent">.</span></p>
       <button className="capture-back" onClick={onCancel}><span aria-hidden="true">←</span> Back</button>
     </nav>
     <header className="mb-7 mt-9 sm:mb-10 sm:mt-12">
-      <p className="text-[10px] font-medium uppercase tracking-[0.23em] text-accent">{reviewing ? '02 / Your starting point' : '01 / Find your light'}</p>
-      <h1 className="mt-3 font-display text-[2.5rem] leading-[1.08] tracking-tight sm:text-5xl">{reviewing ? 'A moment to make it yours.' : <>Your colours begin<br className="hidden sm:block" /> with good light.</>}</h1>
-      <p className="mt-4 max-w-lg text-sm leading-relaxed text-ink-soft">{reviewing ? 'Take a look before we explore your colours.' : 'Face a window, settle into the frame, and let us take care of the timing.'}</p>
+      {precision && <div className="mb-5" aria-live="polite"><p className="capture-eyebrow">Precision Analysis · Capture {precision.index + 1} of 3</p><div className="mt-3 flex gap-2" aria-label={`${precision.savedSlots.length} photos saved`}>{[0, 1, 2].map(i => <span key={i} className={`h-1.5 w-12 rounded-full ${precision.savedSlots.includes(i) ? 'bg-[#476D5C]' : i === precision.index ? 'bg-accent/60' : 'bg-hairline'}`} />)}</div><p className="mt-3 text-xs text-ink-soft">{precision.savedSlots.length ? `${precision.savedSlots.length} saved. Stay in the same light and relax naturally for the next moment.` : 'Three moments, one colour profile. Stay in the same soft light throughout.'}</p></div>}
+      {!precision && <p className="text-[10px] font-medium uppercase tracking-[0.23em] text-accent">{reviewing ? '02 / Your starting point' : '01 / Find your light'}</p>}
+      <h1 className="mt-3 font-display text-[2.5rem] leading-[1.08] tracking-tight sm:text-5xl">{reviewing ? 'A moment to make it yours.' : precision ? 'Let the light settle.' : <>Your colours begin<br className="hidden sm:block" /> with good light.</>}</h1>
+      {!precision && <p className="mt-4 max-w-lg text-sm leading-relaxed text-ink-soft">{reviewing ? 'Take a look before we explore your colours.' : 'Face a window, settle into the frame, and let us take care of the timing.'}</p>}
     </header>
     {errorMessage && <p className="mb-6 rounded-xl bg-accent-soft p-4 text-sm text-accent">{errorMessage}</p>}
     <div className="capture-layout">
@@ -56,17 +89,19 @@ export default function CameraCapture({ onAnalyzedImage, onUseUploadInstead, onC
         <p className="mt-3 text-center text-[11px] leading-relaxed text-ink-soft">{reviewing ? 'Saved as the camera sees you, without the mirror.' : 'A mirrored preview. Your captured photo will be unmirrored.'}</p>
       </section>
       <section className="capture-panel" aria-label="Capture guidance">
+        {precision?.onUseTwo && <div className="mb-6 rounded-xl border border-hairline bg-white/60 p-4"><h2 className="font-display text-xl">Two good photos are ready.</h2><p className="mt-2 text-xs leading-relaxed text-ink-soft">You can continue with these. We’ll leave more room for uncertainty, or keep trying for a third.</p><button className="capture-secondary mt-3 w-full" onClick={precision.onUseTwo}>Use my two good photos</button></div>}
         {phase === 'unavailable' ? <>
           <p className="capture-eyebrow">Camera unavailable</p><h2 className="mt-3 font-display text-3xl">Let’s get you a photo.</h2>
           <p role="alert" className="mt-4 text-sm leading-relaxed text-ink-soft">{capture.error}</p>
           <div className="mt-7 flex flex-col gap-3"><button className="capture-primary" onClick={capture.retake}>Try camera again</button><button className="capture-secondary" onClick={onUseUploadInstead}>Upload a photo instead</button></div>
         </> : reviewing ? <>
-          <p className="capture-eyebrow">{phase === 'verifying' ? 'One last check' : usable ? 'Ready to explore' : profile ? 'A clearer photo would help' : 'Photo saved for review'}</p>
-          <h2 className="mt-3 font-display text-3xl" aria-live="polite">{phase === 'verifying' ? 'Finding the details.' : usable ? 'This is a good starting point.' : profile ? 'Let’s adjust the light or framing.' : 'Let’s check that once more.'}</h2>
-          <p className="mt-4 text-sm leading-relaxed text-ink-soft">{phase === 'verifying' ? 'We’re checking your full photo for usable facial detail, exposure and lighting.' : usable ? 'Your photo has enough detail to continue. Keep it, or take another if you prefer.' : profile ? 'The full photo check picked up something the live preview couldn’t confirm.' : capture.error}</p>
+          <p className="capture-eyebrow">{phase === 'verifying' ? 'One last check' : usable && !precisionRejected ? 'Ready to explore' : profile ? 'A clearer photo would help' : 'Photo saved for review'}</p>
+          <h2 className="mt-3 font-display text-3xl" aria-live="polite">{phase === 'verifying' ? 'Finding the details.' : usable && !precisionRejected ? 'This is a good starting point.' : profile ? 'Let’s adjust the light or framing.' : 'Let’s check that once more.'}</h2>
+          <p className="mt-4 text-sm leading-relaxed text-ink-soft">{phase === 'verifying' ? 'We’re checking your full photo for usable facial detail, exposure and lighting.' : usable && !precisionRejected ? 'Your photo has enough detail to continue. Keep it, or take another if you prefer.' : profile ? 'The full photo check picked up something the live preview couldn’t confirm.' : capture.error}</p>
           {!!issues.length && <ul className="mt-5 space-y-4">{issues.map(issue => <li key={issue.code} className="border-l-2 border-accent/35 pl-4"><h3 className="text-sm font-medium">{issue.title}</h3><p className="mt-1 text-xs leading-relaxed text-ink-soft">{issue.guidance}</p></li>)}</ul>}
+          {precisionRejected && <p role="alert" className="mt-4 text-sm text-accent">{precisionManualDiagnostic?.rejectionReasons[0]?.guidance ?? 'We need a clearer view of all three skin regions for this capture. Keep your forehead and cheeks visible in soft, even light.'} Your earlier photos are saved.</p>}
           <div className="mt-7 grid grid-cols-2 gap-3"><button className={profile && !usable ? 'capture-primary' : 'capture-secondary'} onClick={capture.retake}>Retake</button>
-            {phase === 'review' && !profile ? <button className="capture-primary" onClick={capture.retryVerification}>Check again</button> : <button className="capture-primary" disabled={!usable || phase !== 'review'} onClick={() => { if (image && profile && usable) onAnalyzedImage(image, profile) }}>Use Photo <span aria-hidden="true">→</span></button>}
+            {phase === 'review' && !profile ? <button className="capture-primary" onClick={capture.retryVerification}>Check again</button> : <button className="capture-primary" disabled={!!precision || !usable || phase !== 'review'} onClick={() => { if (image && profile && usable) onAnalyzedImage(image, profile) }}>{precisionRejected ? 'New photo needed' : precision ? 'Checking capture' : 'Use Photo'} <span aria-hidden="true">→</span></button>}
           </div>
           {profile && !usable && <p className="mt-3 text-xs leading-relaxed text-ink-soft">Retake or choose another photo to continue.</p>}
         </> : <>

@@ -15,8 +15,8 @@ const EXAMPLE_SWATCHES = [
 
 const STEPS = [
   {
-    title: 'Upload a photo',
-    body: 'A clear, well-lit, forward-facing photo is all it takes — no account, no sign-up.',
+    title: 'Find your light',
+    body: 'Choose a guided three-photo scan, a quick camera photo, or an upload — no account, no sign-up.',
   },
   {
     title: 'We read your colouring',
@@ -43,7 +43,7 @@ export default function LandingPage({ onStart }: LandingPageProps) {
           </h1>
 
           <p className="mt-6 max-w-md text-lg leading-relaxed text-ink-soft">
-            Upload a photo and PaletteAI reads your skin, hair, and eye colouring to build a
+            Use guided capture or upload a photo. PaletteAI reads your skin, hair, and eye colouring to build a
             personal clothing colour palette — the shades likely to complement you, and the ones
             worth using more carefully.
           </p>
@@ -56,7 +56,7 @@ export default function LandingPage({ onStart }: LandingPageProps) {
           </button>
 
           <p className="mt-4 text-sm text-ink-soft">
-            Takes about a minute. Your photo stays in your browser.
+            A short session, at your pace. Your photos stay in your browser.
           </p>
         </div>
 

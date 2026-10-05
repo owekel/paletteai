@@ -2,11 +2,8 @@ import type { RGB } from '../colorUtils'
 import { rgbToOklab } from '../oklab'
 import type { LightingReferenceSamples } from '../illuminationCorrection'
 import type { FaceRegions, IrisSampleRegion } from './faceDetection'
-import {
-  BACKGROUND_CATEGORY,
-  categoryAtRelativePosition,
-  type HairMask,
-} from './hairSegmentation'
+import type { HairMask } from './hairSegmentation'
+import { isSafeBackgroundReference } from './backgroundExclusion'
 
 const REFERENCE_CANVAS_MAX_EDGE = 220
 const BACKGROUND_CHROMA_LIMIT = 0.065
@@ -48,7 +45,7 @@ function sampleBackgroundCandidates(
     for (let x = 0; x < width; x++) {
       const relativeX = (x + 0.5) / width
       const relativeY = (y + 0.5) / height
-      if (categoryAtRelativePosition(mask, relativeX, relativeY) !== BACKGROUND_CATEGORY) continue
+      if (!isSafeBackgroundReference(mask, relativeX, relativeY, width, height)) continue
 
       const index = (y * width + x) * 4
       const pixel = { r: data[index], g: data[index + 1], b: data[index + 2] }
