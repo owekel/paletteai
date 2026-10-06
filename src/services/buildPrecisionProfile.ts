@@ -5,11 +5,14 @@ import { aggregateDimension, PRECISION_DIMENSIONS } from './precisionAggregation
 import { assessSeasonSensitivity } from './seasonSensitivity'
 import { classifyShadowSeason } from './shadowSeasonClassifier'
 import { buildSeasonAnalysis } from './seasonAnalysis'
+import { assessPrecisionSessionLighting, PrecisionSessionLightingError } from './precisionSessionLighting'
 
 export function buildPrecisionProfile(records: PrecisionCaptureRecord[]): { image: string; profile: ColorProfile } {
   if (records.length < 2 || records.length > 3 || records.some(r => r.profile.analysis.quality.imageQuality.status !== 'usable')) {
     throw new Error('Precision analysis requires two or three technically usable captures.')
   }
+  const sessionLighting = assessPrecisionSessionLighting(records)
+  if (sessionLighting.status === 'reacquire-required') throw new PrecisionSessionLightingError(sessionLighting)
   // Image/feature diagnostics are from an actual reference capture, never
   // fabricated by averaging segmentation, pixels or per-photo quality flags.
   const reference = records.reduce((best, r, i) => r.quality > records[best].quality ? i : best, 0)
@@ -34,7 +37,7 @@ export function buildPrecisionProfile(records: PrecisionCaptureRecord[]): { imag
       : `Your ${count} captures point towards ${analysis.title}, which stays the closest match across most of the variations we checked. Explore this palette as a starting point, not a fixed rule.`
     : `${supported} ${analysis.unresolved.length ? `We’re keeping ${analysis.unresolved.join(', ')} open. ` : ''}${analysis.resultKind === 'candidate-group' ? 'Start with colours shared by the nearby seasons below.' : 'Use the comparisons below to explore what feels most natural on you.'}`
   if (records.length === 2) analysis.summary += ' This uses two good photos; we’ve allowed more room for uncertainty than with three.'
-  const precision: PrecisionDiagnostics = { version: PRECISION_CONFIG.version, captureCount: records.length, referenceCapture: reference + 1, dimensions, sensitivity,
+  const precision: PrecisionDiagnostics = { version: PRECISION_CONFIG.version, captureCount: records.length, referenceCapture: reference + 1, sessionLighting, dimensions, sensitivity,
     captures: records.map(r => ({ quality: r.quality, measurements: Object.fromEntries(PRECISION_DIMENSIONS.map(d => [d, { score: r.profile.shadowMeasurements[d].score, reliability: r.profile.shadowMeasurements[d].reliability }])) as PrecisionDiagnostics['captures'][number]['measurements'],
       skin: r.profile.shadowMeasurements.skinDiagnostics, lighting: r.profile.shadowMeasurements.lighting,
       imageQuality: r.profile.analysis.quality.imageQuality, selection: r.selection })) }

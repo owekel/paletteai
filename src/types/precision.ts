@@ -1,6 +1,7 @@
 import type { ColorProfile } from './colorProfile'
 import type { CaptureSelection } from './capture'
 import type { ShadowSeasonDimension, ShadowSeasonId } from './shadowSeasonClassification'
+import type { PrecisionSessionLighting } from './precisionLighting'
 
 export interface PrecisionCaptureRecord {
   image: string
@@ -57,6 +58,7 @@ export interface PrecisionDiagnostics {
   version: 'precision-v1'
   captureCount: number
   referenceCapture: number
+  sessionLighting: PrecisionSessionLighting
   captures: { quality: number; measurements: Record<ShadowSeasonDimension, { score: number; reliability: number }>;
     skin: ColorProfile['shadowMeasurements']['skinDiagnostics']; lighting: ColorProfile['shadowMeasurements']['lighting'];
     imageQuality: ColorProfile['analysis']['quality']['imageQuality']; selection: CaptureSelection }[]

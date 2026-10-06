@@ -1,7 +1,8 @@
 import type { CaptureMetrics, CaptureRegion } from '../types/capture'
 import { resultFixture } from './resultsFixtures'
+import { applyPrecisionLightingFixture, PRECISION_LIGHTING_SCENARIOS, type PrecisionLightingScenario } from './precisionLightingFixtures'
 
-export const CAPTURE_SCENARIOS = ['ideal', 'precision-strong', 'precision-temperature', 'precision-outlier', 'precision-conflict', 'precision-reacquire', 'precision-two', 'finalist-fallback', 'finalist-excellent', 'finalist-none', 'uneven', 'dark', 'bright', 'moving', 'off-center', 'too-far', 'too-close', 'tilted', 'covered', 'multiple-faces', 'no-face', 'mixed', 'ready-then-moving', 'guidance-unavailable', 'permission-denied', 'post-retake', 'verification-error'] as const
+export const CAPTURE_SCENARIOS = ['ideal', ...PRECISION_LIGHTING_SCENARIOS, 'precision-strong', 'precision-temperature', 'precision-outlier', 'precision-conflict', 'precision-reacquire', 'precision-two', 'finalist-fallback', 'finalist-excellent', 'finalist-none', 'uneven', 'dark', 'bright', 'moving', 'off-center', 'too-far', 'too-close', 'tilted', 'covered', 'multiple-faces', 'no-face', 'mixed', 'ready-then-moving', 'guidance-unavailable', 'permission-denied', 'post-retake', 'verification-error'] as const
 export type CaptureScenario = typeof CAPTURE_SCENARIOS[number]
 
 /** Synthetic INPUT metrics only. Never enters the production capture runtime. */
@@ -36,5 +37,6 @@ export function captureFullFixture(scenario: CaptureScenario, id: number, moment
   const mediocre = scenario === 'finalist-excellent' && id !== 5
   skin.consistencyScore = uneven ? .05 : mediocre ? .3 : .9
   skin.regions.forEach((r, index) => { r.representative.l = .65 + (index === 0 ? uneven ? .2 : mediocre ? .11 : .02 : 0) })
-  return profile
+  return PRECISION_LIGHTING_SCENARIOS.includes(scenario as PrecisionLightingScenario)
+    ? applyPrecisionLightingFixture(profile, scenario as PrecisionLightingScenario, moment) : profile
 }

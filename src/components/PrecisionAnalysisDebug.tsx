@@ -1,5 +1,6 @@
 import type { PrecisionDiagnostics } from '../types/precision'
 import { PRECISION_DIMENSIONS } from '../services/precisionAggregation'
+import PrecisionLightingDebug from './PrecisionLightingDebug'
 
 const percent = (n: number) => `${(n * 100).toFixed(1)}%`
 export default function PrecisionAnalysisDebug({ diagnostics: p }: { diagnostics: PrecisionDiagnostics }) {
@@ -8,6 +9,7 @@ export default function PrecisionAnalysisDebug({ diagnostics: p }: { diagnostics
     <summary className="cursor-pointer font-medium">Developer Precision Analysis · {s.version}</summary>
     <p className="mt-4 font-medium">{s.state} · {s.confidence} support</p>
     <p className="mt-2 leading-relaxed text-ink-soft">{s.reason}</p>
+    <PrecisionLightingDebug diagnostics={p.sessionLighting} />
     <p className="mt-3 leading-relaxed text-ink-soft">{s.samples} deterministic simulations of the person-level profile. These are stress-test frequencies, not scientifically calibrated diagnosis probabilities. The 5–95% intervals describe the provisional sampling model.</p>
     <div className="mt-5 overflow-x-auto"><table className="w-full whitespace-nowrap text-left tabular-nums"><caption className="mb-3 text-left font-medium">Uncertainty of the combined profile</caption><thead><tr>{['Dimension', 'Estimate', '5–95% interval', 'Empirical spread', 'Robust spread', 'Repeatability SE', 'Measurement SE', 'Combined SD', 'Effective photos', 'Description support'].map(label => <th key={label} className="border-b border-hairline px-3 py-2 font-medium">{label}</th>)}</tr></thead><tbody>{PRECISION_DIMENSIONS.map(d => {
       const u = s.uncertainty[d]
