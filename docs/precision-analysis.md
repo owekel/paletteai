@@ -30,21 +30,52 @@ Agreement therefore gives a modest, capped bonus rather than assuming temporally
 
 The aggregated profile is classified once using the existing reliability-weighted direct classifier. Per-photo classifications, still produced by the reusable full analysis, are not voted on or consumed. The highest technical-quality capture supplies the display/try-on image and non-aggregated feature diagnostics. The UI explicitly labels those diagnostic details as reference-capture data.
 
-## Continuous uncertainty and sensitivity
+## Sampled uncertainty and sensitivity v2
 
-`seasonSensitivity.ts` uses `precisionConfig.ts`; prototype calibration is untouched.
+`precisionUncertainty.ts` estimates the person-level sampling distribution from the existing aggregated coordinates and per-capture contributions; robust aggregation itself is unchanged. `seasonSensitivity.ts` evaluates that distribution. All parameters are versioned in `precisionConfig.ts`; prototype-12-v3 geometry remains untouched.
 
-For each aggregated dimension, `u=(1−reliability)²`. Low/high endpoints extend from the estimate toward the domain minimum/maximum by `u` of that distance, plus a 0.04 floor (0.02 for contrast) and 1.5× observed spread. Endpoints are bounded by the domain. Zero reliability gives the whole domain. These are conservative plausible ranges, **not statistical confidence intervals**.
+### Why v1 lost useful evidence
 
-81 combinations of low / estimate / high are evaluated across the four dimensions. Sample hypotheses use the unchanged **base-weight prototype distance**, not an additional reliability multiplier: uncertainty is already expressed by the ranges. Otherwise a zero-weight temperature axis could never affect the ranking, even across −1…+1. Exact distance ties split the sample contribution.
+V1 expanded toward scale extremes using `(1−reliability)²`, added `1.5 × spread`, and equally counted all 81 Cartesian combinations of low/center/high. It did not use effective capture count, quality or robust contribution shares in uncertainty estimation. A single endpoint crossing a category boundary erased a dimension description. Specific results needed 85% of these extreme stress combinations; groups required every pair to be close, which wrongly excluded a coherent Soft Summer / Cool Summer / Soft Autumn neighbourhood.
 
-- Specific: one season wins at least 85% of stress samples.
-- Candidate group: up to three seasons together win at least 90%, and each pair has base-weight RMS prototype distance ≤0.60.
-- Broad: neither condition holds; use the existing broad-profile/consensus exploration experience.
+For the reported temperature −0.479, reliability 0.626 and spread 0.049, v1 produced −0.665…−0.159. Even assuming zero spread in the other axes, chroma expanded to −0.685…−0.236 and contrast to 0.224…0.393, withholding both descriptions. With those zero-spread assumptions the old implementation yields 80.2% Soft Summer / 19.8% Cool Summer, **constrained**, not broad. The reported broad state needs the omitted spreads/full capture data to reproduce exactly. Tests explicitly label the reconstructed capture data as assumptions, not original photographs.
 
-Those operational boundaries and the coarse grid remain provisional. Frequencies describe robustness under a stress test, not probabilities that a person belongs to a season. An exact result can legitimately retain an open temperature dimension when that uncertainty does not change the leading season.
+### Distribution components
 
-A consumer dimension description is supported only when the entire range stays in its existing descriptive band (cool/balanced/warm, deep/medium/light, soft/medium/clear, low/moderate/high contrast). Recommendations consume those supported dimensions and sensitivity-selected candidate identities. The existing palette engine is reused. The old 45% labels remain in legacy diagnostics and the explicitly preserved single-photo path, but do **not** decide Precision specificity, candidate membership or supported dimension descriptions.
+For each axis, normalize the existing final robust shares `w_i` and use `n_eff = 1 / sum(w_i²)`. The model reports raw empirical spread (unchanged), robust weighted residual spread, repeatability standard error, measurement standard error and their combined standard deviation.
+
+Repeatability covariance uses shared Gaussian multipliers for each complete capture residual vector. Coefficient for capture i on dimension d is:
+
+`sqrt(w_di × [n_eff/(n_eff−1)] / n_eff) × (capture_di − aggregate_d)`.
+
+The weighted sample-variance correction accounts for the very small number of captures. Agreement reduces residual covariance, and multiple effective captures reduce uncertainty of the estimate. Outlier downweighting affects coefficients before sampling. When almost only one capture has influence, residual disagreement is not mistaken for a precisely repeated estimate. Cross-axis covariance is the sum of coefficient products for the same captures, preserving observed directions such as correlated value/chroma changes.
+
+Reliability values are operational scores, not calibrated standard errors. A separate, replaceable **measurement-error prior** supplies uncertainty when identical photos have zero residual spread:
+
+- Scale `s0` is 0.25 × median nearest-neighbour RMS distance in the existing prototype geometry; contrast uses half that scale.
+- Per-photo precision proxy `p_i = reliability_i × quality_i`.
+- Error variance `v_i = s0² × (1−p_i)/p_i`, capped at uniform full-domain variance.
+- Combined measurement variance = `0.65 × sum(w_i² v_i) + 0.35 × (sum(w_i sqrt(v_i)))²`.
+
+The first component contracts with independent effective evidence; the second retains shared camera/lighting bias. Three identical moderate captures therefore improve repeatability without inventing perfect certainty. This prior and the 35% shared-error allocation are provisional assumptions, **not empirically learned calibration**. No fixed reliability-derived ± interval is assigned. Completely missing evidence uses a uniform full-domain distribution and cannot support a consumer dimension description.
+
+The aggregated reliability remains unchanged and visible. Sampling reads its underlying per-photo reliability/quality and robust shares instead of applying the aggregated disagreement penalty a second time. Raw spread remains visible; losing influence over the center does not hide disagreement from diagnostics.
+
+### Simulations and presentation
+
+Generate 512 deterministic seeded Gaussian multiplier-bootstrap profiles around the unchanged aggregate, add within-photo error, and bound coordinates to their valid domains. Complete residual vectors share multipliers; independent Cartesian endpoint combinations are gone. With only two or three captures, covariance has limited rank; regularized measurement variance represents unresolved directions. Results expose theoretical and simulated covariance plus sampled 5th–95th percentile intervals. Those intervals describe this model, **not scientifically calibrated confidence intervals**.
+
+Each simulation is a plausible true person-level coordinate set. It uses unchanged v3 base-weight distances, without discounting uncertain dimensions a second time. The original reliability-weighted direct classifier and its raw affinities remain separate diagnostics. Individual photo classifications are never voted on.
+
+- Specific: leader wins at least 65%, leads the runner by at least 15 percentage points, and at least 90% of wins remain in its neighbourhood. Exact support below 85% receives moderate consumer wording; ≥85% receives strong wording.
+- Constrained: up to three seasons in one neighbourhood cover at least 90%, including the leading season. Each member must be within RMS prototype distance 0.60 of a common winning anchor; outer members need not be equally close to each other.
+- Broad/indeterminate: neither condition holds. Unrelated alternatives can prevent a specific result even with a strong numerical leader.
+
+This admits the requested 70% Soft Summer / 20% Cool Summer / 8% Soft Autumn example as moderate-specific, and 45% / 30% / 22% as constrained. A Soft Summer / Bright Spring split stays broad. Thresholds remain operational and versioned, not validated diagnosis boundaries.
+
+Consumer dimension descriptions require at least 70% of simulations to retain the aggregate's existing descriptive band. A rare category-crossing tail no longer erases an otherwise supported direction. Palette/recommendation generation is unchanged and consumes the resulting dimensions and candidates. The legacy 45% labels remain in single-photo logic and diagnostics; they do not decide Precision presentation.
+
+Developer output includes empirical/robust spread, both uncertainty components, effective photo count, intervals, exact-season/family/neighbourhood wins, retention of the original direct-classifier top season, its most common alternative, pairwise ranking stability, final state and its reason. Frequencies are stress-test frequencies, not calibrated diagnosis probabilities.
 
 ## Full-person illuminant audit
 

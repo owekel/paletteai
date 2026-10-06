@@ -8,6 +8,7 @@ import { evaluateCaptureQuality } from '../src/services/capture/captureQuality'
 import { isSafeBackgroundReference } from '../src/services/vision/backgroundExclusion'
 import { SHADOW_SEASON_PROTOTYPES } from '../src/data/shadowSeasonCalibration'
 import type { PrecisionCaptureRecord } from '../src/types/precision'
+import { PRECISION_CONFIG } from '../src/data/precisionConfig'
 
 let passed = 0
 function test(name: string, fn: () => void) { fn(); console.log(`✓ ${name}`); passed++ }
@@ -24,7 +25,7 @@ test('Three strong captures retain each of the twelve exact subtype palettes', (
     assert.equal(p.analysis.status, 'specific', prototype.id)
     assert.equal(p.analysis.candidates[0].id, prototype.id)
     assert.equal(p.analysis.paletteMode, 'season')
-    assert.equal(p.precision!.sensitivity.samples, 81)
+    assert.equal(p.precision!.sensitivity.samples, PRECISION_CONFIG.sensitivity.samples)
   }
 })
 test('Robust combination is not a simple average; reliable capture outranks weak evidence', () => {
@@ -88,7 +89,8 @@ test('A unanimous sensitivity leader uses a meaningful central runner-up, not a 
 test('No reliable evidence gives full plausible ranges and no artificial winner', () => {
   const p = buildPrecisionProfile([record(0,0),record(0,0),record(0,0)]).profile
   assert.equal(p.analysis.resultKind,'broad-profile')
-  assert.deepEqual(p.precision!.sensitivity.ranges.temperature,{ low: -1, high: 1 })
+  assert.ok(p.precision!.sensitivity.ranges.temperature.low < -.8 && p.precision!.sensitivity.ranges.temperature.high > .8)
+  assert.equal(p.precision!.sensitivity.uncertainty.temperature.uninformative,true)
   assert.equal(p.precision!.dimensions.temperature.reliability,0)
 })
 test('44%→45% does not trigger a presentation cliff', () => {

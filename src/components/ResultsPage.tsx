@@ -9,6 +9,7 @@ import ColourTester from './ColourTester'
 import SeasonMeasurementDebug from './SeasonMeasurementDebug'
 import AnalysisQualityNotice from './AnalysisQualityNotice'
 import ColourComparisons from './ColourComparisons'
+import PrecisionAnalysisDebug from './PrecisionAnalysisDebug'
 
 interface ResultsPageProps {
   profile: ColorProfile
@@ -120,7 +121,7 @@ export default function ResultsPage({ profile, capturedImageDataUrl, onStartOver
 
       {import.meta.env.DEV && (
         <div className="mt-14">
-          {profile.precision && <details className="mb-6 rounded-xl border border-hairline p-5 text-xs"><summary className="cursor-pointer font-medium">Developer Precision Analysis · {profile.precision.version}</summary><p className="mt-3 text-ink-soft">Combined dimensions and sensitivity below. Pixel/feature and illumination details in the legacy measurement panel refer to reference capture {profile.precision.referenceCapture}; its historical 45% discrimination labels do not decide the precision result. Stress-test win frequencies are not calibrated season probabilities.</p><pre className="mt-4 max-h-[36rem] overflow-auto whitespace-pre-wrap">{JSON.stringify(profile.precision, null, 2)}</pre></details>}
+          {profile.precision && <PrecisionAnalysisDebug diagnostics={profile.precision} />}
           <SeasonMeasurementDebug measurements={profile.shadowMeasurements} classification={profile.shadowSeasonClassification}
             qualityAssessment={analysis.quality} presentation={analysis} />
         </div>

@@ -21,7 +21,7 @@ export function buildPrecisionProfile(records: PrecisionCaptureRecord[]): { imag
     temperature: combined(base.shadowMeasurements.temperature, 'temperature'), value: combined(base.shadowMeasurements.value, 'value'),
     chroma: combined(base.shadowMeasurements.chroma, 'chroma'), contrast: combined(base.shadowMeasurements.contrast, 'contrast') }
   const classification = classifyShadowSeason(measurements)
-  const sensitivity = assessSeasonSensitivity(dimensions)
+  const sensitivity = assessSeasonSensitivity(dimensions, classification.rankings[0].id)
   const analysis = buildSeasonAnalysis(measurements, classification, sensitivity)
   analysis.dimensions = analysis.dimensions.map(d => ({ ...d, description: d.description.replace('This photo does not settle', 'These captures do not settle') }))
   analysis.paletteDescription = analysis.paletteDescription.replace('your photo supports', 'your captures support').replace('the photo has not established', 'the captures have not established')
@@ -29,7 +29,9 @@ export function buildPrecisionProfile(records: PrecisionCaptureRecord[]): { imag
   const consistent = analysis.dimensions.filter(d => d.resolved).map(d => d.label.toLowerCase())
   const supported = consistent.length ? `Your ${consistent.join(', ')} held a consistent direction across your ${count} captures.` : `Your ${count} captures give us a starting point for colour comparisons, but do not yet settle a single colour direction.`
   analysis.summary = analysis.status === 'specific'
-    ? `Your ${count} captures point towards ${analysis.title}, which stays the closest match across most of the variations we checked. Explore this palette as a starting point, not a fixed rule.`
+    ? sensitivity.confidence === 'moderate'
+      ? `Your ${count} captures lean towards ${analysis.title}. It leads across most of the variations we checked, with nearby seasons still worth exploring. Start with this palette and compare the finer differences on your photo.`
+      : `Your ${count} captures point towards ${analysis.title}, which stays the closest match across most of the variations we checked. Explore this palette as a starting point, not a fixed rule.`
     : `${supported} ${analysis.unresolved.length ? `We’re keeping ${analysis.unresolved.join(', ')} open. ` : ''}${analysis.resultKind === 'candidate-group' ? 'Start with colours shared by the nearby seasons below.' : 'Use the comparisons below to explore what feels most natural on you.'}`
   if (records.length === 2) analysis.summary += ' This uses two good photos; we’ve allowed more room for uncertainty than with three.'
   const precision: PrecisionDiagnostics = { version: PRECISION_CONFIG.version, captureCount: records.length, referenceCapture: reference + 1, dimensions, sensitivity,
