@@ -47,7 +47,7 @@ function CheckIcon({ dark }: { dark: boolean }) {
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
       <path
         d="M5 13l4 4L19 7"
-        stroke={dark ? '#1C1A17' : '#F3EFE6'}
+        stroke={dark ? 'var(--text-primary)' : 'var(--background)'}
         strokeWidth="2.5"
         strokeLinecap="round"
         strokeLinejoin="round"
@@ -159,33 +159,27 @@ export default function ColorTryOn({ imageDataUrl, palette, recommendationLabel 
 
   return (
     <div>
-      <h2 className="font-display text-3xl text-ink sm:text-4xl">See yourself in colour</h2>
+      <h2 className="ui-heading">See it on you.</h2>
       <p className="mt-1 max-w-lg text-sm leading-relaxed text-ink-soft">
-        Preview these shades or choose your own. The preview follows your clothing’s shading and texture.
+        Browse your colourways. The same clothing, in a different shade.
       </p>
 
-      {status === 'loading' && <p className="mt-8 text-sm text-ink-soft">Finding the clothing in your photo…</p>}
-
-      {status === 'error' && (
-        <p className="mt-8 max-w-lg text-sm text-ink-soft">
-          Something went wrong preparing this photo for try-on. This doesn't affect the rest of
-          your results.
-        </p>
-      )}
-
-      {status === 'no-clothing' && (
-        <p className="mt-8 max-w-lg text-sm text-ink-soft">
-          We couldn't find a clear clothing area to recolour in this photo. Your colour analysis is still available.
-          To use the preview, choose a photo that includes some of your top.
-        </p>
-      )}
+      {status !== 'ready' && <div className="tryon-placeholder"><img src={imageDataUrl} alt="Your photo, ready for colour comparison" />
+        <p role="status" className="ui-copy">{status === 'loading' ? 'Preparing your clothing preview…' : status === 'error'
+          ? 'Try-on couldn’t prepare this photo. Your palette is still ready to explore.'
+          : 'For try-on, choose a portrait that shows more of your top. Your colour guide is still ready.'}</p>
+      </div>}
 
       {status === 'ready' && (
-        <div className="mt-8">
+        <div className="tryon-layout">
           {applyError && <p role="alert" className="mb-4 text-sm text-accent">{applyError}</p>}
           {/* Photo hero */}
-          <div className="mx-auto max-w-md">
-            <div className="relative aspect-[3/4] overflow-hidden rounded-xl bg-surface shadow-[0_24px_60px_-24px_rgba(28,26,23,0.4)]">
+          <div className="tryon-photo">
+            <div className="tryon-toggle" aria-label="Photo comparison">
+              <button onClick={() => setView('before')} aria-pressed={view === 'before'}>Original</button>
+              <button onClick={() => setView('after')} aria-pressed={view === 'after'} disabled={!recoloredDataUrl}>Try-on</button>
+            </div>
+            <div className="tryon-photo-frame">
               <img
                 src={imageDataUrl}
                 alt="Your original photo"
@@ -203,63 +197,28 @@ export default function ColorTryOn({ imageDataUrl, palette, recommendationLabel 
                 />
               )}
 
-              {/* Before / Try-On toggle, overlaid directly on the photo */}
-              <div className="absolute left-1/2 top-4 flex -translate-x-1/2 gap-0.5 rounded-full border border-ink/10 bg-paper/90 p-1 shadow-sm backdrop-blur-sm">
-                <button
-                  onClick={() => setView('before')}
-                  aria-pressed={view === 'before'}
-                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors duration-200 ${
-                    view === 'before' ? 'bg-ink text-paper' : 'text-ink-soft hover:text-ink'
-                  }`}
-                >
-                  Before
-                </button>
-                <button
-                  onClick={() => setView('after')}
-                  aria-pressed={view === 'after'}
-                  disabled={!recoloredDataUrl}
-                  className={`rounded-full px-4 py-1.5 text-sm font-medium transition-colors duration-200 disabled:cursor-not-allowed disabled:opacity-50 ${
-                    view === 'after' ? 'bg-ink text-paper' : 'text-ink-soft hover:text-ink'
-                  }`}
-                >
-                  Try-On
-                </button>
-              </div>
-
-              {/* Applying-colour overlay */}
-              <div
-                aria-hidden={!isApplying}
-                className={`absolute inset-0 flex items-center justify-center bg-ink/20 backdrop-blur-[1px] transition-opacity duration-200 ${
-                  isApplying ? 'opacity-100' : 'pointer-events-none opacity-0'
-                }`}
-              >
-                <div className="flex items-center gap-2 rounded-full bg-paper/95 px-4 py-2 text-sm font-medium text-ink shadow-sm">
-                  <span className="h-2 w-2 animate-pulse rounded-full bg-accent" />
-                  Applying colour…
-                </div>
-              </div>
             </div>
+            <p className="tryon-working" role="status" aria-live="polite">{isApplying ? 'Applying colour…' : selectedLabel ? `${view === 'before' ? 'Original photo' : selectedLabel} · preview only` : 'Choose a shade to begin.'}</p>
           </div>
 
           {/* Colour selection */}
-          <div className="mx-auto mt-10 max-w-2xl">
+          <div className="min-w-0">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-              <h3 className="font-display text-lg text-ink">{recommendationLabel}</h3>
+              <h3 className="ui-subheading">{recommendationLabel}</h3>
               {selectedLabel && (
                 <div className="flex items-center gap-2 text-sm">
                   <span
-                    className="h-3.5 w-3.5 shrink-0 rounded-full border border-hairline"
+                    className="h-3.5 w-3.5 shrink-0 rounded-sm border border-hairline"
                     style={{ backgroundColor: selectedHex ?? undefined }}
                   />
                   <span className="text-ink">
                     <span className="font-medium">{selectedLabel}</span>
-                    {selectedHex && <span className="text-ink-soft"> · {selectedHex.toUpperCase()}</span>}
                   </span>
                 </div>
               )}
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-3">
+            <div className="tryon-choices">
               {swatchOptions.map((swatch) => {
                 const isSelected = selectedHex?.toLowerCase() === swatch.hex.toLowerCase()
                 return (
@@ -267,14 +226,12 @@ export default function ColorTryOn({ imageDataUrl, palette, recommendationLabel 
                     key={swatch.hex}
                     onClick={() => applyColor(swatch.hex)}
                     title={swatch.name}
-                    aria-label={swatch.name}
+                    aria-label={`Try ${swatch.name}`}
                     aria-pressed={isSelected}
-                    className={`flex h-12 w-12 shrink-0 items-center justify-center rounded-full border-2 transition-all duration-200 hover:scale-110 ${
-                      isSelected ? 'border-ink' : 'border-hairline hover:border-ink-soft'
-                    }`}
-                    style={{ backgroundColor: swatch.hex }}
+                    className="tryon-choice"
                   >
-                    {isSelected && <CheckIcon dark={isLightColor(swatch.hex)} />}
+                    <span style={{ backgroundColor: swatch.hex }}>{isSelected && <CheckIcon dark={isLightColor(swatch.hex)} />}</span>
+                    <span>{swatch.name}</span>
                   </button>
                 )
               })}
@@ -282,21 +239,21 @@ export default function ColorTryOn({ imageDataUrl, palette, recommendationLabel 
 
             {comparisons.length > 0 && (
               <div className="mt-8">
-                <h3 className="font-display text-xl">Compare on your photo</h3>
-                <p className="mb-4 mt-2 text-sm text-ink-soft">Switch between each pair. Notice which effect you prefer; choosing a colour does not change your analysis.</p>
+                <h3 className="ui-subheading">Compare these shades</h3>
+                <p className="mb-4 mt-2 text-sm text-ink-soft">Switch between the shades and notice what you prefer. Your analysis stays the same.</p>
                 <ColourComparisons comparisons={comparisons} compact selectedHex={selectedHex} onSelect={colour => applyColor(colour.hex)} />
               </div>
             )}
 
             {/* Custom colour — visually separated from the recommendations above */}
             <div className="mt-8 border-t border-hairline pt-6">
-              <h3 className="text-sm font-medium text-ink-soft">Custom Colour</h3>
+              <h3 className="text-sm font-medium">Try another shade</h3>
               <div className="mt-3 flex items-center gap-3">
                 <input
                   type="color"
                   value={customHexForPicker}
                   onChange={(event: ChangeEvent<HTMLInputElement>) => applyColor(event.target.value)}
-                  className="h-11 w-11 cursor-pointer rounded-lg border border-hairline p-1"
+                  className="ui-input h-11 w-11 cursor-pointer p-1"
                   aria-label="Pick a custom colour"
                 />
                 <input
@@ -309,7 +266,7 @@ export default function ColorTryOn({ imageDataUrl, palette, recommendationLabel 
                   }}
                   placeholder={DEFAULT_CUSTOM_HEX}
                   aria-label="Custom colour hex code"
-                  className="w-32 rounded-lg border border-hairline bg-surface px-3 py-2.5 font-mono text-sm uppercase text-ink transition-colors focus:border-ink focus:outline-none"
+                  className="ui-input w-32 font-mono uppercase"
                   maxLength={7}
                 />
               </div>

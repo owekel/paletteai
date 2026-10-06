@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { analyzeImage } from '../services/analyzeImage'
 import type { ColorProfile } from '../types/colorProfile'
+import ProcessingMark from './ProcessingMark'
 
 interface AnalysisLoadingProps {
   imageDataUrl: string
@@ -9,10 +10,10 @@ interface AnalysisLoadingProps {
 }
 
 const STAGES = [
-  'Examining your photo...',
-  'Analyzing facial colouring...',
-  'Comparing colour relationships...',
-  'Building your palette...',
+  'Checking your photo…',
+  'Reading your colouring…',
+  'Finding the qualities that work together…',
+  'Bringing your palette together…',
 ]
 
 const STAGE_INTERVAL_MS = 1100
@@ -55,57 +56,10 @@ export default function AnalysisLoading({ imageDataUrl, onComplete, onError }: A
 
   return (
     <div className="mx-auto flex min-h-screen max-w-xl flex-col items-center justify-center px-6 text-center">
-      <div className="h-16 w-16">
-        <SpinningSwatch />
-      </div>
-
-      <ul className="mt-10 space-y-3">
-        {STAGES.map((stage, index) => (
-          <li
-            key={stage}
-            className={`text-lg transition-colors duration-300 ${
-              index === stageIndex
-                ? 'font-display text-ink'
-                : index < stageIndex
-                  ? 'text-ink-soft line-through decoration-hairline'
-                  : 'text-hairline'
-            }`}
-          >
-            {stage}
-          </li>
-        ))}
-      </ul>
+      <ProcessingMark />
+      <h1 className="ui-heading mt-7">Building your colour profile</h1>
+      <p role="status" aria-live="polite" className="mt-4 text-sm text-ink-soft">{STAGES[stageIndex]}</p>
+      <p className="mt-8 text-xs text-ink-soft">A little colour, considered carefully.</p>
     </div>
   )
-}
-
-// A small ring of colour segments in place of a generic spinner — a nod to
-// the fact that this loading state is specifically about analysing colour.
-function SpinningSwatch() {
-  const colors = ['#B5502A', '#1E3A8A', '#009B77', '#C99A2E']
-  return (
-    <svg viewBox="0 0 40 40" className="h-full w-full animate-spin" style={{ animationDuration: '1.4s' }}>
-      {colors.map((color, index) => (
-        <path
-          key={color}
-          d={describeArc(20, 20, 16, index * 90, index * 90 + 70)}
-          stroke={color}
-          strokeWidth="4"
-          strokeLinecap="round"
-          fill="none"
-        />
-      ))}
-    </svg>
-  )
-}
-
-function polarToCartesian(cx: number, cy: number, r: number, angleDeg: number) {
-  const angleRad = ((angleDeg - 90) * Math.PI) / 180
-  return { x: cx + r * Math.cos(angleRad), y: cy + r * Math.sin(angleRad) }
-}
-
-function describeArc(cx: number, cy: number, r: number, startAngle: number, endAngle: number) {
-  const start = polarToCartesian(cx, cy, r, endAngle)
-  const end = polarToCartesian(cx, cy, r, startAngle)
-  return `M ${start.x} ${start.y} A ${r} ${r} 0 0 0 ${end.x} ${end.y}`
 }

@@ -8,26 +8,22 @@ interface ColourPaletteProps {
 
 export default function ColourPalette({ palette, mode = 'season' }: ColourPaletteProps) {
   return (
-    <div className="space-y-14">
+    <div>
       <PaletteGroup
-        title={mode === 'season' ? 'Signature colours' : mode === 'consensus' ? 'Best colours to start with' : 'Everyday colours to compare'}
-        intro={mode === 'season' ? 'Start here for colour close to your face.' : mode === 'consensus' ? 'The strongest starting options from the available colour evidence.' : 'Use these as reference points to discover the effects you enjoy.'}
+        title={mode === 'season' ? 'Your strongest colours' : mode === 'consensus' ? 'Best colours to start with' : 'Everyday shades to explore'}
+        intro={mode === 'season' ? 'Try these close to your face: a tee, a knit, a scarf.' : mode === 'consensus' ? 'A shared starting point across your possible palettes.' : 'Reference shades for noticing the effects you enjoy.'}
         swatches={palette.best}
         concise={mode !== 'season'}
       />
 
       <PaletteGroup
-        title="Good Neutrals"
+        title="Easy neutrals"
         intro="Foundations to combine with the colours above."
         swatches={palette.neutrals}
         concise={mode !== 'season'}
       />
 
-      <PaletteGroup
-        title="Colours to Use Sparingly"
-        intro="Not off-limits — these may just create less harmony with your detected colouring, so they tend to work better in small doses."
-        swatches={palette.useCarefully}
-      />
+      {palette.useCarefully.length > 0 && <details className="ui-disclosure mt-10"><summary>For a different effect</summary><div className="mt-4"><PaletteGroup title="Colours to use thoughtfully" intro="Not off-limits. These make a stronger statement; try them as an accent." swatches={palette.useCarefully} /></div></details>}
     </div>
   )
 }
@@ -45,10 +41,10 @@ function PaletteGroup({
 }) {
   if (!swatches.length) return null
   return (
-    <div>
-      <h2 className="font-display text-2xl text-ink">{title}</h2>
+    <div className="palette-group">
+      <h3 className="ui-subheading">{title}</h3>
       <p className="mt-1 max-w-lg text-sm text-ink-soft">{intro}</p>
-      <div className={`mt-6 grid grid-cols-2 gap-5 sm:grid-cols-3 ${concise ? 'lg:grid-cols-3' : 'lg:grid-cols-4'}`}>
+      <div className="palette-grid">
         {swatches.map((swatch) => (
           <ColourSwatch
             key={swatch.hex}

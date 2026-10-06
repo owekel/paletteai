@@ -1,8 +1,10 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import CameraCapture from './CameraCapture'
 import PrecisionCapture from './PrecisionCapture'
 import UploadScreen from './UploadScreen'
 import type { ColorProfile } from '../types/colorProfile'
+import SiteHeader from './SiteHeader'
+import './guidedCapture.css'
 
 interface CaptureScreenProps {
   onImageReady: (dataUrl: string) => void
@@ -13,35 +15,27 @@ interface CaptureScreenProps {
 
 // Decides how the person gets a photo into the app: the camera (default)
 // or the existing file-upload flow (used as a fallback, or just by
-// preference). UploadScreen itself is reused completely unmodified.
+// preference). UploadScreen reuses the existing file-processing workflow.
 // Camera review supplies the already-verified profile; uploads retain the
 // existing loading flow. Both use the same analysis and results pipeline.
 export default function CaptureScreen({ onImageReady, onAnalyzedImage, onCancel, errorMessage }: CaptureScreenProps) {
   const [mode, setMode] = useState<'choose' | 'precision' | 'camera' | 'upload'>('choose')
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }) }, [mode])
 
-  if (mode === 'choose') return <main className="mx-auto max-w-4xl px-5 py-8 sm:px-10 sm:py-12">
-    <nav className="flex items-center justify-between"><p className="font-display text-2xl">PaletteAI<span className="text-accent">.</span></p><button className="capture-back" onClick={onCancel}>← Back</button></nav>
-    <header className="mb-10 mt-14"><p className="capture-eyebrow">Your colour story</p><h1 className="mt-4 font-display text-4xl sm:text-5xl">More than a single moment.</h1><p className="mt-5 max-w-xl text-sm leading-relaxed text-ink-soft">Small changes in light can change a photo. Three carefully checked moments help us find the qualities that stay consistent.</p></header>
-    <div className="grid gap-5 sm:grid-cols-2"><section className="rounded-2xl border border-accent/30 bg-white/50 p-6 sm:p-8"><p className="capture-eyebrow">Recommended · 3 photos</p><h2 className="mt-4 font-display text-3xl">Precision Analysis</h2><p className="mt-4 text-sm leading-relaxed text-ink-soft">A short guided scan in the same soft light. We choose each moment automatically, then bring the evidence together.</p><button className="capture-primary mt-7 w-full" onClick={() => setMode('precision')}>Begin precision capture →</button></section><section className="rounded-2xl border border-hairline p-6 sm:p-8"><p className="capture-eyebrow">A lighter starting point · 1 photo</p><h2 className="mt-4 font-display text-3xl">Quick Analysis</h2><p className="mt-4 text-sm leading-relaxed text-ink-soft">The same guided camera with one checked photo. Useful for exploring your colours when you’re short on time.</p><button className="capture-secondary mt-7 w-full" onClick={() => setMode('camera')}>Take one photo</button></section></div>
-    <button className="mt-8 text-sm text-ink-soft underline underline-offset-4" onClick={() => setMode('upload')}>Or use a photo from your library</button><p className="mt-5 text-xs text-ink-soft">Private by design. Photos stay in this browser. No need to change your lighting between captures.</p>
-    {errorMessage && <p role="alert" className="mt-5 text-sm text-accent">{errorMessage}</p>}
+  if (mode === 'choose') return <main className="page-shell page-shell-narrow">
+    <SiteHeader onAction={onCancel} />
+    <div className="entry-intro"><p className="ui-eyebrow">01 / Your starting point</p><h1 className="ui-title mt-4">A little light. A clearer picture.</h1><p className="ui-copy mt-4">Three photos help us find the qualities that hold steady. Face a soft light, keep your forehead and cheeks visible, and settle in.</p></div>
+    <section className="entry-primary"><div><p className="ui-eyebrow">Recommended · 3 photos</p><h2 className="ui-subheading mt-3">Precision Analysis</h2><p className="ui-copy mt-2 text-sm">A short guided scan. Each photo is captured automatically when you’re ready.</p></div><button className="ui-button ui-button-primary" onClick={() => setMode('precision')}>Start guided scan <span aria-hidden="true">→</span></button></section>
+    <div className="entry-alternatives"><section><h2 className="ui-subheading">Just exploring?</h2><p className="mt-2 text-sm text-ink-soft">Quick Analysis uses one guided photo.</p><button className="ui-text-action mt-2" onClick={() => setMode('camera')}>Take one photo →</button></section><section><h2 className="ui-subheading">Have a photo ready?</h2><p className="mt-2 text-sm text-ink-soft">Choose a clear, naturally lit portrait.</p><button className="ui-text-action mt-2" onClick={() => setMode('upload')}>Upload a photo →</button></section></div>
+    <footer className="ui-footer"><p>Stay in the same soft light throughout your scan.</p><p>Private, in your browser.</p></footer>
+    {errorMessage && <p role="alert" className="ui-notice mt-5">{errorMessage}</p>}
   </main>
 
   if (mode === 'precision') return <PrecisionCapture onAnalyzedImage={onAnalyzedImage} onCancel={() => setMode('choose')} onUseUploadInstead={() => setMode('upload')} />
 
   if (mode === 'upload') {
     return (
-      <div>
-        <UploadScreen onImageReady={onImageReady} errorMessage={errorMessage} />
-        <p className="mx-auto max-w-2xl px-6 pb-14 text-sm sm:px-10">
-          <button
-            onClick={() => setMode('camera')}
-            className="text-ink-soft underline decoration-hairline underline-offset-4 hover:text-ink"
-          >
-            Use my camera instead
-          </button>
-        </p>
-      </div>
+      <UploadScreen onImageReady={onImageReady} errorMessage={errorMessage} onBack={() => setMode('choose')} onUseCamera={() => setMode('camera')} />
     )
   }
 

@@ -25,27 +25,26 @@ export default function ColourSwatch({ name, hex, description, size = 'large' }:
     return (
       <button
         onClick={handleCopy}
-        className="group flex flex-col items-start gap-1.5 text-left"
+        className="palette-small"
+        aria-label={`Copy ${name}, ${hex}`}
         title={`Copy ${hex}`}
       >
         <span
-          className="h-12 w-12 border border-hairline transition-transform group-hover:scale-105"
           style={{ backgroundColor: hex }}
         />
-        <span className="text-xs text-ink-soft">{copied ? 'Copied' : name}</span>
+        <span aria-live="polite">{copied ? 'Copied' : name}</span>
       </button>
     )
   }
 
   return (
-    <button onClick={handleCopy} className="group flex flex-col text-left" title={`Copy ${hex}`}>
+    <button onClick={handleCopy} className="palette-swatch" title={description ? `${description} Copy ${hex}` : `Copy ${hex}`} aria-label={`Copy ${name}, ${hex}`}>
       <span
-        className="aspect-[4/3] w-full border border-hairline transition-transform group-hover:scale-[1.02]"
+        className="palette-swatch-colour"
         style={{ backgroundColor: hex }}
       />
-      <span className="mt-3 font-display text-lg text-ink">{name}</span>
-      <span className="text-sm text-ink-soft">{copied ? 'Copied to clipboard' : hex}</span>
-      {description && <span className="mt-1 text-sm leading-relaxed text-ink-soft">{description}</span>}
+      <span className="palette-swatch-name">{name}</span>
+      <span className="palette-swatch-code" aria-live="polite">{copied ? 'Copied ✓' : hex}</span>
     </button>
   )
 }

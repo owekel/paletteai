@@ -10,6 +10,7 @@ import SeasonMeasurementDebug from './SeasonMeasurementDebug'
 import AnalysisQualityNotice from './AnalysisQualityNotice'
 import ColourComparisons from './ColourComparisons'
 import PrecisionAnalysisDebug from './PrecisionAnalysisDebug'
+import SiteHeader from './SiteHeader'
 
 interface ResultsPageProps {
   profile: ColorProfile
@@ -27,55 +28,47 @@ export default function ResultsPage({ profile, capturedImageDataUrl, onStartOver
   const [requestedColour, setRequestedColour] = useState<{ hex: string; requestId: number }>()
   function compareColour(colour: ColorSwatchData) {
     setRequestedColour(previous => ({ hex: colour.hex, requestId: (previous?.requestId ?? 0) + 1 }))
-    tryOnRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    tryOnRef.current?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' })
   }
   return (
-    <main className="results-page mx-auto max-w-content px-5 py-6 sm:px-10 sm:py-10 lg:px-16">
-      <header className="mb-12 flex items-center justify-between gap-4 border-b border-hairline pb-5 sm:mb-16">
-        <p className="font-display text-2xl tracking-tight">PaletteAI<span className="text-accent">.</span></p>
-        <button onClick={onStartOver} className="rounded-full border border-hairline px-4 py-2.5 text-xs transition-colors hover:border-ink sm:text-sm">
-          Analyze another photo
-        </button>
-      </header>
+    <main className="results-page page-shell">
+      <SiteHeader onAction={onStartOver} actionLabel="New analysis" />
 
       {!usable ? <AnalysisQualityNotice assessment={analysis.quality} onRetake={onStartOver} /> : (
         <>
           <ResultsHero analysis={analysis} imageDataUrl={capturedImageDataUrl} />
-          {analysis.dimensions.some(d => d.resolved) && <div className="mt-14 sm:mt-20"><ProfileSummary profile={profile} /></div>}
 
-          <section id="your-palette" className="mt-16 scroll-mt-8 border-t border-hairline pt-10 sm:mt-20" aria-labelledby="palette-heading">
-            <p className="text-xs font-medium uppercase tracking-[0.18em] text-accent">01 / Your colours</p>
-            <h2 id="palette-heading" className="mt-3 font-display text-3xl sm:text-4xl">
-              {analysis.paletteMode === 'season' ? `The ${analysis.title} palette`
-                : analysis.paletteMode === 'consensus' ? 'A palette to build on' : 'Your colour comparison kit'}
-            </h2>
-            <p className="mt-4 max-w-2xl text-sm leading-relaxed text-ink-soft">{analysis.paletteDescription}</p>
-            {hasPalette && <div className="mt-8"><ColourPalette palette={palette} mode={analysis.paletteMode} /></div>}
+          <section id="your-palette" className="result-section" aria-labelledby="palette-heading">
+            <div className="section-heading-row"><h2 id="palette-heading" className="ui-heading">{analysis.paletteMode === 'season' ? 'Your colour edit' : analysis.paletteMode === 'consensus' ? 'A palette to build on' : 'Your comparison edit'}</h2><span className="section-index">01 / COLOUR</span></div>
+            {analysis.paletteMode !== 'season' && <p className="ui-copy text-sm">{analysis.paletteMode === 'consensus' ? 'Shades shared by your possible palettes, guided by the qualities your photos support.' : 'Try these reference shades to discover the effects you like. They are not a personal season recommendation.'}</p>}
+            {hasPalette && <div className="mt-5"><ColourPalette palette={palette} mode={analysis.paletteMode} /></div>}
             {recommendations?.outfit && (
-              <div className="mt-8 flex flex-wrap items-center gap-5 rounded-xl border border-hairline bg-white/40 p-5">
-                <div className="flex shrink-0 overflow-hidden rounded-lg" aria-hidden="true">
-                  {recommendations.outfit.colours.map(c => <span key={c.hex} className="h-20 w-14" style={{ backgroundColor: c.hex }} />)}
+              <div className="outfit-note">
+                <div className="flex shrink-0 overflow-hidden rounded-md" aria-hidden="true">
+                  {recommendations.outfit.colours.map(c => <span key={c.hex} className="h-16 w-10" style={{ backgroundColor: c.hex }} />)}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <h3 className="font-display text-xl">{recommendations.outfit.title}</h3>
+                  <h3 className="ui-subheading">{recommendations.outfit.title}</h3>
                   <p className="mt-2 text-sm leading-relaxed text-ink-soft">{recommendations.outfit.description}</p>
                 </div>
               </div>
             )}
           </section>
 
+          {analysis.dimensions.some(d => d.resolved) && <div className="result-section"><ProfileSummary profile={profile} /></div>}
+
           {analysis.status === 'constrained' && (
-            <section className="mt-10 rounded-2xl border border-hairline bg-white/30 p-5 sm:p-7" aria-labelledby="season-context-heading">
-              <h2 id="season-context-heading" className="font-display text-2xl">{analysis.resultKind === 'candidate-group' ? 'Where your seasons overlap' : 'The finer details can stay flexible'}</h2>
+            <section className="season-context" aria-labelledby="season-context-heading">
+              <h2 id="season-context-heading" className="ui-subheading">{analysis.resultKind === 'candidate-group' ? 'Nearby palettes, shared qualities' : 'Room for the finer details'}</h2>
               {analysis.candidates.length > 0 && (
                 <>
-                  <p className="mt-3 text-sm leading-relaxed text-ink-soft">These are nearby possibilities, not a single settled season. The starting palette draws on their common qualities.</p>
+                  <p className="mt-3 text-sm leading-relaxed text-ink-soft">Your colour direction overlaps these palettes. You don’t need to choose one to start.</p>
                   <ul className="mt-4 flex flex-wrap gap-2" aria-label="Possible seasons">
-                    {analysis.candidates.map(c => <li key={c.id} className="rounded-full border border-hairline bg-paper px-3 py-2 text-sm">{c.label}</li>)}
+                    {analysis.candidates.map(c => <li key={c.id} className="text-sm font-medium">{c.label}</li>)}
                   </ul>
                 </>
               )}
-              <p className="mt-4 text-sm leading-relaxed text-ink-soft">
+              <p className="mt-3 text-sm leading-relaxed text-ink-soft">
                 {analysis.unresolved.length ? `Still worth exploring: ${analysis.unresolved.join('; ')}. The comparisons below help you see the difference.`
                   : 'The measured qualities are clear, but more than one season expresses them. Use the palette as your guide without choosing a label.'}
               </p>
@@ -83,16 +76,16 @@ export default function ResultsPage({ profile, capturedImageDataUrl, onStartOver
           )}
 
           {!!recommendations?.comparisons.length && (
-            <section id="compare-colours" className="mt-12 scroll-mt-8" aria-labelledby="compare-heading">
-              <h2 id="compare-heading" className="font-display text-3xl">Worth comparing</h2>
-              <p className="mb-6 mt-3 max-w-2xl text-sm leading-relaxed text-ink-soft">Choose a shade to see it on your clothing. These pairs explore the open questions; neither option is a verdict.</p>
+            <section id="compare-colours" className="result-section" aria-labelledby="compare-heading">
+              <h2 id="compare-heading" className="ui-heading">Colours to compare</h2>
+              <p className="ui-copy mb-6 mt-3">Try each pair on your photo. The differences are worth exploring; neither shade is a verdict.</p>
               <ColourComparisons comparisons={recommendations.comparisons} onSelect={compareColour} />
             </section>
           )}
 
           {!!recommendations?.lessSupported.length && (
-            <details className="mt-10 rounded-xl border border-hairline p-5">
-              <summary className="cursor-pointer font-display text-xl">Less supported right now</summary>
+            <details className="ui-disclosure mt-7">
+              <summary>Other directions to explore</summary>
               <p className="mt-3 text-sm text-ink-soft">Useful directions to compare, rather than rules about what you can wear.</p>
               <ul className="mt-4 grid gap-4 sm:grid-cols-2">
                 {recommendations.lessSupported.map(item => <li key={item.dimension}><p className="text-sm font-medium">{item.title}</p><p className="mt-1 text-sm leading-relaxed text-ink-soft">{item.description}</p></li>)}
@@ -100,8 +93,8 @@ export default function ResultsPage({ profile, capturedImageDataUrl, onStartOver
             </details>
           )}
 
-          <section id="try-on" ref={tryOnRef} className="mt-16 scroll-mt-8 border-t border-hairline pt-10 sm:mt-20">
-            <p className="mb-4 text-xs font-medium uppercase tracking-[0.18em] text-accent">02 / See it on you</p>
+          <section id="try-on" ref={tryOnRef} className="result-section">
+            <p className="ui-eyebrow mb-3">02 / See it on you</p>
             <ColorTryOn imageDataUrl={capturedImageDataUrl} palette={palette} comparisons={recommendations?.comparisons} requestedColour={requestedColour} recommendationLabel={
               analysis.paletteMode === 'consensus' ? 'Your starting colours' : analysis.paletteMode === 'starter' ? 'Everyday shades to explore' : `Your ${analysis.title} colours`
             } />
@@ -109,8 +102,8 @@ export default function ResultsPage({ profile, capturedImageDataUrl, onStartOver
 
           {hasPalette && analysis.paletteMode !== 'starter' && (
             <>
-              <details className="mt-14 rounded-2xl border border-hairline p-5 sm:p-8">
-                <summary className="cursor-pointer font-display text-2xl">Make it part of your wardrobe</summary>
+              <details className="ui-disclosure mt-10">
+                <summary>Make it part of your wardrobe</summary>
                 <div className="mt-8"><WardrobeSection wardrobe={palette.wardrobe} staples={palette.staples} /></div>
               </details>
               <div className="mt-14"><ColourTester palette={palette} shared={analysis.paletteMode === 'consensus'} /></div>
@@ -120,16 +113,13 @@ export default function ResultsPage({ profile, capturedImageDataUrl, onStartOver
       )}
 
       {import.meta.env.DEV && (
-        <div className="mt-14">
+        <details className="developer-area"><summary>Developer tools · technical detail</summary><div className="mt-4">
           {profile.precision && <PrecisionAnalysisDebug diagnostics={profile.precision} />}
           <SeasonMeasurementDebug measurements={profile.shadowMeasurements} classification={profile.shadowSeasonClassification}
             qualityAssessment={analysis.quality} presentation={analysis} />
-        </div>
+        </div></details>
       )}
-      <footer className="mt-16 border-t border-hairline pb-4 pt-6 text-xs leading-relaxed text-ink-soft">
-        Colour is personal. This photo-based style guide is a starting point—wear what feels like you.
-        Your photo stays in your browser.
-      </footer>
+      <footer className="ui-footer"><p>A starting point, not a rulebook. Wear what feels like you.</p><p>Your photos stay in your browser.</p></footer>
     </main>
   )
 }

@@ -30,34 +30,33 @@ export default function TryOnCTA({ imageDataUrl, palette, onStart }: TryOnCTAPro
   return (
     <div className="grid items-center gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:gap-16">
       <div className="mx-auto w-full max-w-xs sm:max-w-sm">
-        <div className="aspect-[3/4] w-full overflow-hidden rounded-2xl shadow-[0_24px_60px_-24px_rgba(28,26,23,0.4)]">
+        <div className="aspect-[3/4] w-full overflow-hidden rounded-xl">
           <img src={imageDataUrl} alt="Your captured photo" className="h-full w-full object-cover" />
         </div>
       </div>
 
       <div>
         <p className="text-sm font-medium text-ink-soft">A new way to explore your palette</p>
-        <h2 className="mt-2 font-display text-4xl leading-tight text-ink sm:text-5xl">
-          See Yourself in Your Colours
+        <h2 className="ui-heading mt-2">
+          See it on you.
         </h2>
-        <p className="mt-5 max-w-md text-lg leading-relaxed text-ink-soft">
-          Try any of your recommended colours directly on your own photo — the shading, folds, and
-          texture stay real, only the colour changes.
+        <p className="ui-copy mt-4">
+          Browse your colourways on your own photo. The same clothing, in a different shade.
         </p>
 
         {accentColors.length > 0 && (
           <div className="mt-6 flex max-w-xs gap-1.5">
             {accentColors.map((color) => (
-              <span key={color.hex} className="h-2 flex-1 rounded-full" style={{ backgroundColor: color.hex }} />
+              <span key={color.hex} className="h-2 flex-1" style={{ backgroundColor: color.hex }} />
             ))}
           </div>
         )}
 
         <button
           onClick={onStart}
-          className="group mt-8 inline-flex items-center gap-2 bg-ink px-8 py-4 text-base font-medium text-paper transition-colors hover:bg-accent"
+          className="ui-button ui-button-primary group mt-6"
         >
-          Try On Your Colours
+          Try your colours
           <ArrowIcon />
         </button>
       </div>

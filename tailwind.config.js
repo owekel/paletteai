@@ -7,20 +7,23 @@ export default {
         // Editorial, print-inspired palette. "ink" and "paper" carry the UI;
         // "accent" is used sparingly so the *generated* colour swatches stay
         // the most vivid thing on screen, since colour is the whole product.
-        ink: '#1C1A17',
-        'ink-soft': '#6B655C',
-        paper: '#F3EFE6',
-        surface: '#FFFFFF',
-        hairline: '#DDD5C7',
-        accent: '#6E2A35',
-        'accent-soft': '#F4E4E2',
+        ink: 'rgb(var(--color-ink) / <alpha-value>)',
+        'ink-soft': 'rgb(var(--color-ink-soft) / <alpha-value>)',
+        paper: 'rgb(var(--color-paper) / <alpha-value>)',
+        surface: 'rgb(var(--color-surface) / <alpha-value>)',
+        hairline: 'rgb(var(--color-hairline) / <alpha-value>)',
+        accent: 'rgb(var(--color-accent) / <alpha-value>)',
+        'accent-soft': 'rgb(var(--color-accent-soft) / <alpha-value>)',
+        success: 'rgb(var(--color-success) / <alpha-value>)',
+        warning: 'rgb(var(--color-warning) / <alpha-value>)',
       },
       fontFamily: {
-        display: ['"Fraunces"', 'ui-serif', 'Georgia', 'serif'],
+        display: ['"Inter"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+        editorial: ['"Fraunces"', 'ui-serif', 'Georgia', 'serif'],
         body: ['"Inter"', 'ui-sans-serif', 'system-ui', 'sans-serif'],
       },
       maxWidth: {
-        content: '72rem',
+        content: 'var(--content-width)',
       },
     },
   },

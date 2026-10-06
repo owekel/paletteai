@@ -8,6 +8,7 @@ import { browserCaptureRuntime } from '../services/capture/cameraRuntime'
 import { CAPTURE_GUIDANCE } from '../services/capture/captureQuality'
 import { CAPTURE_CONFIG } from '../data/captureConfig'
 import './guidedCapture.css'
+import SiteHeader from './SiteHeader'
 
 interface CameraCaptureProps {
   onAnalyzedImage: (image: string, profile: ColorProfile) => void
@@ -29,7 +30,7 @@ export default function CameraCapture({ onAnalyzedImage, onUseUploadInstead, onC
   const holding = windowState.guidance === 'ready' && windowState.holding
   const guide = CAPTURE_GUIDANCE[windowState.guidance]
   const problem = phase === 'live' && !capture.quality?.blocker ? capture.selectionProblem : undefined
-  const title = capture.paused ? 'Ready when you are' : choosing ? 'Choosing the best frame…' : problem ? problem.title : analyzer === 'loading' ? 'Getting ready' : analyzer === 'unavailable' ? 'You’re in control' : holding ? 'Hold still' : guide.title
+  const title = capture.paused ? 'Ready when you are' : choosing ? 'Choosing the best frame…' : problem ? problem.title : analyzer === 'loading' ? 'Getting ready' : analyzer === 'unavailable' ? 'You’re in control' : holding ? 'Looks good — hold still.' : guide.title
   const detail = capture.paused ? 'Return to the camera to begin again.' : choosing ? 'A quick check of the light and detail in your recent photos.' : problem ? problem.guidance : analyzer === 'loading' ? 'Preparing your live guidance. You can already take a photo.' : analyzer === 'unavailable' ? 'Live guidance is unavailable. Take a photo when you’re ready; we’ll check it afterward.' : holding ? 'The light and framing look good. Taking your photo in a moment.' : guide.detail
   const debug = import.meta.env.DEV && new URLSearchParams(location.search).get('debug') === 'capture'
   const handledProfile = useRef<ColorProfile>(), seenFailures = useRef(0)
@@ -59,18 +60,15 @@ export default function CameraCapture({ onAnalyzedImage, onUseUploadInstead, onC
   const precisionManualDiagnostic = precision && profile && capture.selection?.method === 'manual'
     ? evaluateCaptureFinalist({ id: 0, quality: capture.quality }, capturePhotoEvidence(profile)) : undefined
   const precisionRejected = precision && phase === 'review' && (!usable || !precisionManualDiagnostic?.passed && capture.selection?.method === 'manual')
-  return <main className="guided-capture mx-auto max-w-6xl px-5 pb-10 pt-6 text-ink sm:px-10 sm:pb-16 sm:pt-9">
-    <nav className="flex items-center justify-between" aria-label="Capture navigation">
-      <p className="font-display text-2xl tracking-tight">PaletteAI<span className="text-accent">.</span></p>
-      <button className="capture-back" onClick={onCancel}><span aria-hidden="true">←</span> Back</button>
-    </nav>
-    <header className="mb-7 mt-9 sm:mb-10 sm:mt-12">
-      {precision && <div className="mb-5" aria-live="polite"><p className="capture-eyebrow">Precision Analysis · Capture {precision.index + 1} of 3</p><div className="mt-3 flex gap-2" aria-label={`${precision.savedSlots.length} photos saved`}>{[0, 1, 2].map(i => <span key={i} className={`h-1.5 w-12 rounded-full ${precision.savedSlots.includes(i) ? 'bg-[#476D5C]' : i === precision.index ? 'bg-accent/60' : 'bg-hairline'}`} />)}</div><p className="mt-3 text-xs text-ink-soft">{precision.savedSlots.length ? `${precision.savedSlots.length} saved. Stay in the same light and relax naturally for the next moment.` : 'Three moments, one colour profile. Stay in the same soft light throughout.'}</p></div>}
+  return <main className="guided-capture page-shell">
+    <SiteHeader onAction={onCancel} />
+    <div className="capture-heading">
+      {precision && <div className="mb-3" aria-live="polite"><div className="flex items-center justify-between gap-4"><p className="capture-eyebrow">Precision Analysis · {precision.index + 1} of 3</p><div className="flex gap-1.5" aria-label={`${precision.savedSlots.length} photos saved`}>{[0, 1, 2].map(i => <span key={i} className={`h-1 w-8 ${precision.savedSlots.includes(i) ? 'bg-success' : i === precision.index ? 'bg-accent' : 'bg-hairline'}`} />)}</div></div><p className="mt-2 text-xs text-ink-soft">Stay in the same soft light for all three moments.</p></div>}
       {!precision && <p className="text-[10px] font-medium uppercase tracking-[0.23em] text-accent">{reviewing ? '02 / Your starting point' : '01 / Find your light'}</p>}
-      <h1 className="mt-3 font-display text-[2.5rem] leading-[1.08] tracking-tight sm:text-5xl">{reviewing ? 'A moment to make it yours.' : precision ? 'Let the light settle.' : <>Your colours begin<br className="hidden sm:block" /> with good light.</>}</h1>
-      {!precision && <p className="mt-4 max-w-lg text-sm leading-relaxed text-ink-soft">{reviewing ? 'Take a look before we explore your colours.' : 'Face a window, settle into the frame, and let us take care of the timing.'}</p>}
-    </header>
-    {errorMessage && <p className="mb-6 rounded-xl bg-accent-soft p-4 text-sm text-accent">{errorMessage}</p>}
+      <h1 className="ui-heading mt-3">{reviewing ? 'Take a look.' : 'Find your light.'}</h1>
+      {!precision && <p className="mt-2 text-sm text-ink-soft">{reviewing ? 'Keep this moment, or try another.' : 'Face a soft light. We’ll take care of the timing.'}</p>}
+    </div>
+    {errorMessage && <p role="alert" className="ui-notice mb-5">{errorMessage}</p>}
     <div className="capture-layout">
       <section aria-label={reviewing ? 'Photo review' : 'Live camera'} className="min-w-0">
         <div className={`capture-view ${holding && !reviewing ? 'capture-holding' : ''}`}>
@@ -84,7 +82,7 @@ export default function CameraCapture({ onAnalyzedImage, onUseUploadInstead, onC
           </>}
           {phase === 'opening' && <div className="capture-cover"><span className="capture-spinner" /><p className="mt-4 text-sm">Waiting for your camera</p><p className="mt-2 max-w-[15rem] text-xs leading-relaxed text-white/65">Allow camera access in your browser to get started.</p></div>}
           {phase === 'unavailable' && <div className="capture-cover"><CameraIcon /><p className="mt-5 font-display text-2xl">Another way in.</p><p className="mt-3 max-w-[15rem] text-sm leading-relaxed text-white/65">A photo from your library works too.</p></div>}
-          {phase === 'verifying' && <div className="absolute inset-x-4 bottom-4 flex items-center gap-3 rounded-xl bg-paper/95 px-4 py-3 text-sm shadow-sm"><span className="capture-spinner capture-spinner-dark" />Checking the detail in your photo…</div>}
+          {phase === 'verifying' && <div role="status" className="absolute inset-x-4 bottom-4 flex items-center gap-3 rounded-lg bg-paper px-4 py-3 text-sm"><span className="capture-spinner capture-spinner-dark" />Checking your photo…</div>}
         </div>
         <p className="mt-3 text-center text-[11px] leading-relaxed text-ink-soft">{reviewing ? 'Saved as the camera sees you, without the mirror.' : 'A mirrored preview. Your captured photo will be unmirrored.'}</p>
       </section>
@@ -106,13 +104,13 @@ export default function CameraCapture({ onAnalyzedImage, onUseUploadInstead, onC
           {profile && !usable && <p className="mt-3 text-xs leading-relaxed text-ink-soft">Retake or choose another photo to continue.</p>}
         </> : <>
           <div className="capture-instruction" aria-live="polite" aria-atomic="true"><p className="capture-eyebrow">{phase === 'opening' ? 'Your camera, your privacy' : holding ? 'Almost there' : 'A little guidance'}</p><h2 className="mt-3 font-display text-3xl sm:text-4xl">{phase === 'opening' ? 'Make yourself comfortable.' : title}</h2><p className="mt-3 max-w-sm text-sm leading-relaxed text-ink-soft">{phase === 'opening' ? 'Your photo stays in this browser. No video or image is uploaded.' : detail}</p></div>
-          <div className="mt-5" role="progressbar" aria-label="Automatic capture progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(windowState.progress * 100)}><div className="h-1 overflow-hidden rounded-full bg-hairline"><div className="capture-progress h-full bg-[#476D5C]" style={{ width: `${windowState.progress * 100}%` }} /></div><p className="mt-2 text-[11px] text-ink-soft">{choosing ? 'Checking your recent photos' : holding ? 'Taking your photo shortly' : analyzer === 'unavailable' ? 'Take a photo whenever you’re ready' : 'Automatic when the moment is right'}</p></div>
-          <div className="capture-shutter-panel my-7 flex items-center gap-5 rounded-2xl border border-hairline bg-white/40 p-4 sm:my-8"><button className="capture-shutter" onClick={capture.manual} disabled={phase !== 'live' && !choosing} aria-label="Take photo now"><span><CameraIcon /></span></button><div><p className="text-sm font-medium">Or take it yourself</p><p className="mt-1 text-xs leading-relaxed text-ink-soft">The shutter is yours whenever<br />the camera is ready.</p></div></div>
+          <div className="capture-progress-row mt-5" role="progressbar" aria-label="Automatic capture progress" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(windowState.progress * 100)}><div className="h-1 overflow-hidden bg-hairline"><div className="capture-progress h-full bg-success" style={{ width: `${windowState.progress * 100}%` }} /></div><p className="mt-2 text-[11px] text-ink-soft">{choosing ? 'Checking your recent photos' : holding ? 'Taking your photo shortly' : analyzer === 'unavailable' ? 'Take a photo whenever you’re ready' : 'Automatic when the moment is right'}</p></div>
+          <div className="capture-shutter-panel"><button className="capture-shutter" onClick={capture.manual} disabled={phase !== 'live' && !choosing} aria-label="Take photo now"><span><CameraIcon /></span></button><div><p className="text-sm font-medium">Or take it yourself</p><p className="mt-1 text-xs text-ink-soft">Your shutter, whenever you’re ready.</p></div></div>
           {capture.error && <p role="alert" className="mb-4 text-sm text-accent">{capture.error}</p>}
-          <div className="space-y-4 border-t border-hairline pt-6">{[['01', 'Soft light, straight on', 'A window in front of you is a good start.'], ['02', 'A clear view of you', 'Keep your forehead, cheeks and eyes visible.'], ['03', 'Settle in naturally', 'Relax your face and hold the camera at eye level.']].map(([n, heading, copy]) => <div key={n} className="flex gap-4"><span className="pt-0.5 text-[10px] text-accent/65">{n}</span><div><h3 className="text-xs font-medium">{heading}</h3><p className="mt-1 text-xs leading-relaxed text-ink-soft">{copy}</p></div></div>)}</div>
+          <details className="capture-help"><summary>A quick guide to good light</summary><div className="mt-4 space-y-4">{[['01', 'Soft light, straight on', 'A window in front of you is a good start.'], ['02', 'A clear view of you', 'Keep your forehead, cheeks and eyes visible.'], ['03', 'Settle in naturally', 'Relax your face and hold the camera at eye level.']].map(([n, heading, copy]) => <div key={n} className="flex gap-4"><span className="pt-0.5 text-[10px] text-accent">{n}</span><div><h3 className="text-xs font-medium">{heading}</h3><p className="mt-1 text-xs leading-relaxed text-ink-soft">{copy}</p></div></div>)}</div></details>
         </>}
-        {phase !== 'unavailable' && <button onClick={onUseUploadInstead} className="mt-7 text-xs text-ink-soft underline decoration-hairline underline-offset-4 hover:text-ink">Choose a photo from your library</button>}
-        <p className="mt-7 flex items-center gap-2 text-[10px] text-ink-soft"><span aria-hidden="true">◈</span> Analysed privately, in your browser.</p>
+        {phase !== 'unavailable' && <button onClick={onUseUploadInstead} className="ui-text-action mt-5">Choose a photo from your library</button>}
+        <p className="mt-5 text-xs text-ink-soft">Private, in your browser.</p>
       </section>
     </div>
     {debug && <details className="mt-10 rounded-xl border border-hairline p-4 text-xs"><summary className="cursor-pointer">Developer capture diagnostics · {CAPTURE_CONFIG.version}</summary><pre aria-label="Capture diagnostics" className="mt-4 max-h-96 overflow-auto whitespace-pre-wrap">{JSON.stringify({ phase, analyzer, paused: capture.paused, live: capture.quality, stability: windowState, bufferedFrames: capture.frames, selection: capture.selection,

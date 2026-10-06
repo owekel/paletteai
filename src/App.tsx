@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ColorProfile, Screen } from './types/colorProfile'
 import LandingPage from './components/LandingPage'
 import CaptureScreen from './components/CaptureScreen'
@@ -10,6 +10,7 @@ export default function App() {
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null)
   const [profile, setProfile] = useState<ColorProfile | null>(null)
   const [analysisError, setAnalysisError] = useState<string | null>(null)
+  useEffect(() => { window.scrollTo({ top: 0, behavior: 'instant' }) }, [screen])
 
   function handleStart() {
     setScreen('upload')

@@ -1,9 +1,12 @@
 import { useRef, useState, type ChangeEvent, type DragEvent, type KeyboardEvent } from 'react'
 import ImagePreview from './ImagePreview'
+import SiteHeader from './SiteHeader'
 
 interface UploadScreenProps {
   onImageReady: (dataUrl: string) => void
   errorMessage?: string | null
+  onBack?: () => void
+  onUseCamera?: () => void
 }
 
 function readFileAsDataUrl(file: File): Promise<string> {
@@ -15,7 +18,7 @@ function readFileAsDataUrl(file: File): Promise<string> {
   })
 }
 
-export default function UploadScreen({ onImageReady, errorMessage }: UploadScreenProps) {
+export default function UploadScreen({ onImageReady, errorMessage, onBack, onUseCamera }: UploadScreenProps) {
   const [dataUrl, setDataUrl] = useState<string | null>(null)
   const [isDraggingOver, setIsDraggingOver] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -50,17 +53,17 @@ export default function UploadScreen({ onImageReady, errorMessage }: UploadScree
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-14 sm:px-10 sm:py-20">
-      <p className="font-display text-xl">PaletteAI</p>
+    <main className="page-shell page-shell-narrow">
+      <SiteHeader onAction={onBack} />
 
-      <h1 className="mt-8 font-display text-3xl text-ink sm:text-4xl">Upload your photo</h1>
-      <p className="mt-3 max-w-lg text-ink-soft">
-        For the most reliable result, use a well-lit photo facing the camera without strong
-        filters or unusual coloured lighting.
+      <p className="ui-eyebrow">01 / Your photo</p>
+      <h1 className="ui-title mt-4">Start with a clear portrait.</h1>
+      <p className="ui-copy mt-4">
+        Face the camera in soft, even light. Skip strong filters and coloured lighting.
       </p>
 
       {errorMessage && (
-        <p className="mt-6 border border-accent bg-accent-soft px-4 py-3 text-sm text-accent">
+        <p role="alert" className="ui-notice mt-6">
           {errorMessage}
         </p>
       )}
@@ -80,16 +83,14 @@ export default function UploadScreen({ onImageReady, errorMessage }: UploadScree
             role="button"
             tabIndex={0}
             onKeyDown={(event: KeyboardEvent<HTMLDivElement>) => {
-              if (event.key === 'Enter' || event.key === ' ') fileInputRef.current?.click()
+              if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); fileInputRef.current?.click() }
             }}
-            className={`flex aspect-[4/3] cursor-pointer flex-col items-center justify-center gap-3 border-2 border-dashed px-6 text-center transition-colors ${
-              isDraggingOver ? 'border-accent bg-accent-soft' : 'border-hairline hover:border-ink-soft'
-            }`}
+            aria-label="Choose or drop a portrait photo"
+            className={`upload-drop gap-3 ${isDraggingOver ? 'upload-drop-active' : ''}`}
           >
             <UploadIcon />
             <p className="text-ink">
-              <span className="font-medium text-accent">Click to select</span> or drag and drop a
-              photo
+              <span className="font-medium">Choose a photo</span> or drop one here
             </p>
             <p className="text-sm text-ink-soft">JPG or PNG, ideally under 10 MB</p>
           </div>
@@ -109,11 +110,13 @@ export default function UploadScreen({ onImageReady, errorMessage }: UploadScree
       <button
         onClick={() => dataUrl && onImageReady(dataUrl)}
         disabled={!dataUrl}
-        className="mt-8 inline-flex items-center gap-2 bg-ink px-8 py-4 text-base font-medium text-paper transition-colors hover:bg-accent disabled:cursor-not-allowed disabled:bg-hairline disabled:text-ink-soft"
+        className="ui-button ui-button-primary mt-6"
       >
-        Analyze Photo
+        Analyse this photo <span aria-hidden="true">→</span>
       </button>
-    </div>
+      {onUseCamera && <div className="mt-4"><button className="ui-text-action" onClick={onUseCamera}>Use my camera instead</button></div>}
+      <footer className="ui-footer"><p>Your photo stays in this browser.</p></footer>
+    </main>
   )
 }
 

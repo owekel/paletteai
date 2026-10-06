@@ -18,7 +18,7 @@ const CATEGORY_LABELS: { key: keyof WardrobeColors; label: string }[] = [
 export default function WardrobeSection({ wardrobe, staples }: WardrobeSectionProps) {
   return (
     <div>
-      <h2 className="font-display text-2xl text-ink">Build Your Wardrobe</h2>
+      <h2 className="ui-heading">Build your wardrobe</h2>
       <p className="mt-1 max-w-lg text-sm text-ink-soft">
         A few starting points for each category, pulled from your palette.
       </p>
@@ -42,7 +42,7 @@ export default function WardrobeSection({ wardrobe, staples }: WardrobeSectionPr
       </div>
 
       <div className="mt-12 border-t border-hairline pt-10">
-        <h3 className="font-display text-xl text-ink">Wardrobe Staples</h3>
+        <h3 className="ui-subheading">Everyday staples</h3>
         <p className="mt-1 max-w-lg text-sm text-ink-soft">
           Versatile basics, tinted to suit your colouring.
         </p>

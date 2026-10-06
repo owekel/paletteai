@@ -8,45 +8,43 @@ interface ResultsHeroProps {
 export default function ResultsHero({ analysis, imageDataUrl }: ResultsHeroProps) {
   const specific = analysis.status === 'specific'
   const colours = [...analysis.palette.best, ...analysis.palette.neutrals].slice(0, 6)
+  const qualities = analysis.dimensions.filter(d => d.resolved).map(d => d.value)
+  // Lead with an established quality, not a long diagnostic-style profile label.
+  const direction = ['chroma', 'value', 'temperature', 'contrast']
+    .map(id => analysis.dimensions.find(d => d.id === id && d.resolved)).find(Boolean)
+  const title = specific ? analysis.title : analysis.paletteMode === 'starter' ? 'A starting palette'
+    : direction ? `${direction.value} colours` : analysis.title
+  const summary = analysis.summary.split(/(?<=[.!?])\s+/)[0]
   return (
-    <section className="grid items-center gap-10 lg:grid-cols-[1.3fr_0.7fr] lg:gap-16" aria-labelledby="result-title">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-[0.2em] text-accent">
-          {specific ? 'Your closest season' : 'Your colour direction'}
-        </p>
-        <h1 id="result-title" className={`mt-5 font-display leading-[1.08] text-ink ${specific ? 'text-5xl sm:text-7xl' : 'text-4xl capitalize sm:text-5xl'}`}>
-          {analysis.title}
-        </h1>
-        <p className="mt-6 max-w-xl text-base leading-relaxed text-ink-soft sm:text-lg">{analysis.summary}</p>
-        {specific && analysis.runnerUp && (
-          <p className="mt-5 text-sm text-ink-soft">
-            A nearby direction: <span className="font-medium text-ink">{analysis.runnerUp.label}</span>.
-            Your main palette follows {analysis.title}.
-          </p>
-        )}
-        {specific && analysis.unresolved.length > 0 && (
-          <p className="mt-6 max-w-xl border-l-2 border-accent/30 pl-4 text-sm leading-relaxed text-ink-soft">
-            Still open: {analysis.unresolved.join('; ')}. These qualities remain flexible in your result.
-          </p>
-        )}
-        <div className="mt-8 flex flex-wrap gap-3">
-          <a href="#your-palette" className="rounded-full bg-ink px-6 py-3 text-sm font-medium text-paper transition-colors hover:bg-accent">
+    <section className="result-hero" aria-labelledby="result-title">
+      <div className="result-hero-content">
+        <div className="result-hero-title"><p className="ui-eyebrow">{specific ? 'Your palette’s ready' : 'Your colour direction'}</p>
+          <h1 id="result-title" className="ui-title mt-4">{title}</h1>
+          {qualities.length > 0 && <p className="result-qualities">{qualities.join(' · ')}</p>}
+        </div>
+        <div className="result-hero-description mt-5"><p className="ui-copy">{summary}</p>
+          {analysis.paletteMode === 'starter' && <p className="mt-3 text-sm text-ink-soft">These are colours to explore, rather than a settled personal season.</p>}
+          {specific && analysis.runnerUp && <p className="mt-3 text-xs text-ink-soft">Also worth exploring: {analysis.runnerUp.label}.</p>}
+          {specific && analysis.unresolved.length > 0 && <p className="mt-3 text-sm text-ink-soft">Still flexible: {analysis.unresolved.join('; ')}.</p>}
+        </div>
+        <div className="result-hero-actions mt-6 flex flex-wrap items-center gap-x-5 gap-y-2">
+          <a href="#your-palette" className="ui-button ui-button-primary">
             {analysis.paletteMode === 'starter' ? 'See your starting set' : 'Explore your colours'}
           </a>
-          <a href={analysis.recommendations?.comparisons.length ? '#compare-colours' : '#try-on'} className="rounded-full border border-hairline px-6 py-3 text-sm transition-colors hover:border-ink">{specific ? 'See them on you ↓' : 'Compare colour directions ↓'}</a>
+          <a href={analysis.recommendations?.comparisons.length ? '#compare-colours' : '#try-on'} className="ui-text-action">{specific ? 'Try them on ↓' : 'Compare shades ↓'}</a>
         </div>
       </div>
-      <figure className="mx-auto w-full max-w-xs lg:max-w-none">
-        <div className="overflow-hidden rounded-t-[7rem] rounded-b-2xl bg-white/40 shadow-[0_20px_50px_-30px_rgba(28,26,23,0.35)]">
-          <img src={imageDataUrl} alt="Your original analysis photo" className="aspect-[4/5] w-full object-cover" />
+      <figure className="result-photo">
+        <div className="result-photo-frame">
+          <img src={imageDataUrl} alt="Your original analysis photo" />
           {colours.length > 0 && (
-            <div className="flex h-10" aria-hidden="true">
+            <div className="flex h-5" aria-hidden="true">
               {colours.map(c => <span key={c.hex} className="flex-1" style={{ backgroundColor: c.hex }} />)}
             </div>
           )}
         </div>
         <figcaption className="mt-3 text-center text-xs text-ink-soft">
-          Your original photo · analysed privately in your browser
+          Your original photo. Just for you.
         </figcaption>
       </figure>
     </section>

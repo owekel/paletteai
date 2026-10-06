@@ -1,21 +1,19 @@
 import type { ColorProfile } from '../types/colorProfile'
 
 export default function ProfileSummary({ profile }: { profile: ColorProfile }) {
-  const dimensions = profile.analysis.status === 'specific' ? profile.analysis.dimensions : profile.analysis.dimensions.filter(d => d.resolved)
+  const dimensions = profile.analysis.dimensions.filter(d => d.resolved)
   if (!dimensions.length) return null
   return (
     <section aria-labelledby="profile-heading">
-      <div className="flex flex-wrap items-baseline justify-between gap-3">
-        <h2 id="profile-heading" className="font-display text-2xl sm:text-3xl">{profile.analysis.status === 'specific' ? 'What shapes your palette' : 'What to look for in clothes'}</h2>
-        <p className="text-sm text-ink-soft">A guide to your natural colouring</p>
-      </div>
-      <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <h2 id="profile-heading" className="ui-heading">Why these colours work</h2>
+      <p className="ui-copy mt-3">{profile.analysis.status === 'specific' ? 'These are the qualities behind your palette. Think of them as a guide, not a set of rules.' : 'Start with the qualities your photos support. The finer details can stay flexible.'}</p>
+      <div className="profile-grid">
         {dimensions.map(item => (
-          <div key={item.id} className="rounded-xl border border-hairline bg-white/40 p-5">
+          <article key={item.id}>
             <p className="text-xs font-medium uppercase tracking-wider text-ink-soft">{item.label}</p>
-            <p className="mt-3 font-display text-2xl">{item.value}</p>
+            <h3 className="ui-subheading mt-2">{item.value}</h3>
             <p className="mt-3 text-sm leading-relaxed text-ink-soft">{item.recommendation ?? item.description}</p>
-          </div>
+          </article>
         ))}
       </div>
     </section>
