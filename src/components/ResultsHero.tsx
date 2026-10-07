@@ -1,4 +1,5 @@
 import type { SeasonAnalysis } from '../types/seasonAnalysis'
+import PaletteStrip from './PaletteStrip'
 
 interface ResultsHeroProps {
   analysis: SeasonAnalysis
@@ -7,7 +8,7 @@ interface ResultsHeroProps {
 
 export default function ResultsHero({ analysis, imageDataUrl }: ResultsHeroProps) {
   const specific = analysis.status === 'specific'
-  const colours = [...analysis.palette.best, ...analysis.palette.neutrals].slice(0, 6)
+  const colours = [...analysis.palette.best, ...analysis.palette.neutrals].slice(0, 8)
   const qualities = analysis.dimensions.filter(d => d.resolved).map(d => d.value)
   // Lead with an established quality, not a long diagnostic-style profile label.
   const direction = ['chroma', 'value', 'temperature', 'contrast']
@@ -16,10 +17,11 @@ export default function ResultsHero({ analysis, imageDataUrl }: ResultsHeroProps
     : direction ? `${direction.value} colours` : analysis.title
   const summary = analysis.summary.split(/(?<=[.!?])\s+/)[0]
   return (
-    <section className="result-hero" aria-labelledby="result-title">
+    <section className={`result-hero ${specific ? 'result-hero-specific' : 'result-hero-direction'}`} aria-labelledby="result-title">
       <div className="result-hero-content">
-        <div className="result-hero-title"><p className="ui-eyebrow">{specific ? 'Your palette’s ready' : 'Your colour direction'}</p>
-          <h1 id="result-title" className="ui-title mt-4">{title}</h1>
+        <div className="result-hero-title"><p className="ui-eyebrow">01 / {specific ? 'Your palette’s ready' : 'Your colour direction'}</p>
+          <h1 id="result-title" className="result-season-title mt-5" aria-label={title}>{specific
+            ? <>{title.split(' ')[0]}<br /><span>{title.split(' ').slice(1).join(' ')}</span></> : title}</h1>
           {qualities.length > 0 && <p className="result-qualities">{qualities.join(' · ')}</p>}
         </div>
         <div className="result-hero-description mt-5"><p className="ui-copy">{summary}</p>
@@ -37,16 +39,12 @@ export default function ResultsHero({ analysis, imageDataUrl }: ResultsHeroProps
       <figure className="result-photo">
         <div className="result-photo-frame">
           <img src={imageDataUrl} alt="Your original analysis photo" />
-          {colours.length > 0 && (
-            <div className="flex h-5" aria-hidden="true">
-              {colours.map(c => <span key={c.hex} className="flex-1" style={{ backgroundColor: c.hex }} />)}
-            </div>
-          )}
         </div>
-        <figcaption className="mt-3 text-center text-xs text-ink-soft">
+        <figcaption className="mt-3 text-xs text-ink-soft">
           Your original photo. Just for you.
         </figcaption>
       </figure>
+      <div className="result-colour-band"><PaletteStrip colours={colours} /><div className="result-band-caption"><span>{analysis.paletteMode === 'starter' ? 'Your comparison edit' : 'Your colours, together.'}</span><span aria-hidden="true">✦</span></div></div>
     </section>
   )
 }

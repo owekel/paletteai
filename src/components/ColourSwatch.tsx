@@ -5,9 +5,10 @@ interface ColourSwatchProps {
   hex: string
   description?: string
   size?: 'large' | 'small'
+  number?: number
 }
 
-export default function ColourSwatch({ name, hex, description, size = 'large' }: ColourSwatchProps) {
+export default function ColourSwatch({ name, hex, description, size = 'large', number }: ColourSwatchProps) {
   const [copied, setCopied] = useState(false)
 
   async function handleCopy() {
@@ -38,12 +39,12 @@ export default function ColourSwatch({ name, hex, description, size = 'large' }:
   }
 
   return (
-    <button onClick={handleCopy} className="palette-swatch" title={description ? `${description} Copy ${hex}` : `Copy ${hex}`} aria-label={`Copy ${name}, ${hex}`}>
+    <button onClick={handleCopy} className="palette-swatch" data-copied={copied} title={description ? `${description} Copy ${hex}` : `Copy ${hex}`} aria-label={`Copy ${name}, ${hex}`}>
       <span
         className="palette-swatch-colour"
         style={{ backgroundColor: hex }}
       />
-      <span className="palette-swatch-name">{name}</span>
+      <span className="palette-swatch-label">{number !== undefined && <span className="palette-swatch-number" aria-hidden="true">{String(number).padStart(2, '0')}</span>}<span className="palette-swatch-name">{name}</span></span>
       <span className="palette-swatch-code" aria-live="polite">{copied ? 'Copied ✓' : hex}</span>
     </button>
   )

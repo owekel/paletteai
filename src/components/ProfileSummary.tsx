@@ -4,10 +4,10 @@ export default function ProfileSummary({ profile }: { profile: ColorProfile }) {
   const dimensions = profile.analysis.dimensions.filter(d => d.resolved)
   if (!dimensions.length) return null
   return (
-    <section aria-labelledby="profile-heading">
-      <h2 id="profile-heading" className="ui-heading">Why these colours work</h2>
+    <section className="profile-overview" aria-labelledby="profile-heading">
+      <div><p className="ui-eyebrow mb-4">03 / The finer details</p><h2 id="profile-heading" className="ui-heading">Why these colours work</h2>
       <p className="ui-copy mt-3">{profile.analysis.status === 'specific' ? 'These are the qualities behind your palette. Think of them as a guide, not a set of rules.' : 'Start with the qualities your photos support. The finer details can stay flexible.'}</p>
-      <div className="profile-grid">
+      </div><div className="profile-grid">
         {dimensions.map(item => (
           <article key={item.id}>
             <p className="text-xs font-medium uppercase tracking-wider text-ink-soft">{item.label}</p>

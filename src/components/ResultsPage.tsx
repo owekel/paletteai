@@ -39,7 +39,7 @@ export default function ResultsPage({ profile, capturedImageDataUrl, onStartOver
           <ResultsHero analysis={analysis} imageDataUrl={capturedImageDataUrl} />
 
           <section id="your-palette" className="result-section" aria-labelledby="palette-heading">
-            <div className="section-heading-row"><h2 id="palette-heading" className="ui-heading">{analysis.paletteMode === 'season' ? 'Your colour edit' : analysis.paletteMode === 'consensus' ? 'A palette to build on' : 'Your comparison edit'}</h2><span className="section-index">01 / COLOUR</span></div>
+            <div className="section-heading-row"><h2 id="palette-heading" className="ui-heading">{analysis.paletteMode === 'season' ? 'Your colour edit' : analysis.paletteMode === 'consensus' ? 'A palette to build on' : 'Your comparison edit'}</h2><span className="section-index">02 / COLOUR NOTES</span></div>
             {analysis.paletteMode !== 'season' && <p className="ui-copy text-sm">{analysis.paletteMode === 'consensus' ? 'Shades shared by your possible palettes, guided by the qualities your photos support.' : 'Try these reference shades to discover the effects you like. They are not a personal season recommendation.'}</p>}
             {hasPalette && <div className="mt-5"><ColourPalette palette={palette} mode={analysis.paletteMode} /></div>}
             {recommendations?.outfit && (
@@ -55,7 +55,7 @@ export default function ResultsPage({ profile, capturedImageDataUrl, onStartOver
             )}
           </section>
 
-          {analysis.dimensions.some(d => d.resolved) && <div className="result-section"><ProfileSummary profile={profile} /></div>}
+          {analysis.dimensions.some(d => d.resolved) && <div className="result-section profile-section"><ProfileSummary profile={profile} /></div>}
 
           {analysis.status === 'constrained' && (
             <section className="season-context" aria-labelledby="season-context-heading">
@@ -76,7 +76,8 @@ export default function ResultsPage({ profile, capturedImageDataUrl, onStartOver
           )}
 
           {!!recommendations?.comparisons.length && (
-            <section id="compare-colours" className="result-section" aria-labelledby="compare-heading">
+            <section id="compare-colours" className="result-section comparison-section" aria-labelledby="compare-heading">
+              <p className="ui-eyebrow mb-4">04 / Side by side</p>
               <h2 id="compare-heading" className="ui-heading">Colours to compare</h2>
               <p className="ui-copy mb-6 mt-3">Try each pair on your photo. The differences are worth exploring; neither shade is a verdict.</p>
               <ColourComparisons comparisons={recommendations.comparisons} onSelect={compareColour} />
@@ -93,8 +94,8 @@ export default function ResultsPage({ profile, capturedImageDataUrl, onStartOver
             </details>
           )}
 
-          <section id="try-on" ref={tryOnRef} className="result-section">
-            <p className="ui-eyebrow mb-3">02 / See it on you</p>
+          <section id="try-on" ref={tryOnRef} className="result-section tryon-section">
+            <p className="ui-eyebrow mb-4">05 / Colourways</p>
             <ColorTryOn imageDataUrl={capturedImageDataUrl} palette={palette} comparisons={recommendations?.comparisons} requestedColour={requestedColour} recommendationLabel={
               analysis.paletteMode === 'consensus' ? 'Your starting colours' : analysis.paletteMode === 'starter' ? 'Everyday shades to explore' : `Your ${analysis.title} colours`
             } />

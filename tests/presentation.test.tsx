@@ -5,6 +5,8 @@ import CaptureScreen from '../src/components/CaptureScreen'
 import ResultsPage from '../src/components/ResultsPage'
 import { resultFixture, FIXTURE_IMAGE } from '../src/dev/resultsFixtures'
 import { SHADOW_SEASON_PROTOTYPES } from '../src/data/shadowSeasonCalibration'
+import PaletteStrip from '../src/components/PaletteStrip'
+import ColourPalette from '../src/components/ColourPalette'
 
 let checks = 0
 function check(name: string, run: () => void) { run(); checks++; console.log(`✓ ${name}`) }
@@ -34,6 +36,31 @@ check('Every specific subtype renders its name and original recommended colours'
     assert.ok(html.indexOf('Your colour edit') < html.indexOf('Why these colours work'))
     assert.ok(!html.includes('technical detail'))
     assert.ok(!html.includes('prototype-12'))
+  }
+})
+check('Graphic palette strips repeat the existing colours in order without inventing recommendations', () => {
+  assert.equal(renderToStaticMarkup(<PaletteStrip colours={[]} />), '')
+  for (const prototype of SHADOW_SEASON_PROTOTYPES) {
+    const colours = resultFixture('strong', prototype.id).analysis.palette.best
+    const html = renderToStaticMarkup(<PaletteStrip colours={colours} />)
+    assert.match(html, /aria-hidden="true"/)
+    let previous = -1
+    for (const colour of colours) {
+      const index = html.indexOf(colour.hex, previous + 1)
+      assert.ok(index > previous)
+      previous = index
+    }
+    assert.equal((html.match(/<span/g) ?? []).length, colours.length)
+  }
+})
+check('Numbered colour fields keep every named copy action and separate everyday neutrals', () => {
+  const palette = resultFixture('strong').analysis.palette
+  const html = renderToStaticMarkup(<ColourPalette palette={palette} />)
+  assert.match(html, /palette-group-editorial/)
+  assert.match(html, /palette-group-neutral/)
+  assert.match(html, /palette-swatch-number" aria-hidden="true">01/)
+  for (const colour of [...palette.best, ...palette.neutrals, ...palette.useCarefully]) {
+    assert.ok(html.includes(`Copy ${colour.name}, ${colour.hex}`))
   }
 })
 check('Constrained results lead with supported colour direction, not an arbitrary winner', () => {

@@ -202,7 +202,7 @@ export default function ColorTryOn({ imageDataUrl, palette, recommendationLabel 
           </div>
 
           {/* Colour selection */}
-          <div className="min-w-0">
+          <div className="tryon-selection min-w-0">
             <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
               <h3 className="ui-subheading">{recommendationLabel}</h3>
               {selectedLabel && (

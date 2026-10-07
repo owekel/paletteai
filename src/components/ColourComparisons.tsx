@@ -10,8 +10,9 @@ export default function ColourComparisons({ comparisons, onSelect, selectedHex, 
   if (!comparisons.length) return null
   return (
     <div className={compact ? 'space-y-5' : 'comparison-grid'}>
-      {comparisons.map(pair => (
-        <div key={pair.id} className="border-t border-hairline pt-4">
+      {comparisons.map((pair, index) => (
+        <div key={pair.id} className={compact ? 'border-t border-hairline pt-4' : 'comparison-pair'}>
+          {!compact && <p className="comparison-pair-label">Study {String(index + 1).padStart(2, '0')} / Compare</p>}
           <h3 className="ui-subheading">{pair.title}</h3>
           {!compact && <p className="mt-2 text-sm leading-relaxed text-ink-soft">{pair.description}</p>}
           <div className="mt-4 grid grid-cols-2 gap-3">

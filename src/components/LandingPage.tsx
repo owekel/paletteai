@@ -1,4 +1,5 @@
 import SiteHeader from './SiteHeader'
+import PaletteStrip from './PaletteStrip'
 
 const EXAMPLE_SWATCHES = [
   { name: 'Dusty rose', hex: '#BA8B8B' }, { name: 'Slate blue', hex: '#6E85A3' },
@@ -22,11 +23,12 @@ export default function LandingPage({ onStart }: { onStart: () => void }) {
         <p className="mt-4 text-xs text-ink-soft">No account. Your photos stay in your browser.</p>
       </div>
       <div className="colour-study" aria-label="Example colour study, not a personal palette">
-        <div className="colour-study-heading"><span>Colour study / 01</span><span aria-hidden="true">✦</span></div>
-        <div className="study-swatches">{EXAMPLE_SWATCHES.map(c => <figure key={c.hex}><span style={{ backgroundColor: c.hex }} /><figcaption>{c.name}</figcaption></figure>)}</div>
+        <div className="colour-study-heading"><span>Colour study / 01</span><span className="brand-square" aria-hidden="true" /></div>
+        <div className="study-swatches">{EXAMPLE_SWATCHES.map((c, i) => <figure key={c.hex}><span style={{ backgroundColor: c.hex }} /><figcaption><span className="study-number">{String(i + 1).padStart(2, '0')}</span>{c.name}</figcaption></figure>)}</div>
         <p className="mt-5 text-xs text-ink-soft">A few possibilities. Your palette will be personal.</p>
       </div>
     </section>
+    <PaletteStrip colours={EXAMPLE_SWATCHES} className="landing-colour-band" />
     <section className="landing-steps" aria-label="How it works">{STEPS.map(([title, copy], i) => <article key={title}>
       <span className="ui-eyebrow">0{i + 1}</span><div><h2 className="ui-subheading sm:mt-3">{title}</h2><p className="mt-2 text-sm text-ink-soft">{copy}</p></div>
     </article>)}</section>

@@ -55,3 +55,31 @@ Review both phone widths (320/390 CSS px), tablet (768px) and desktop. Diagnosti
 tables scroll inside their own containers; they must not widen the page.
 Physical iOS/Android camera permission prompts and safe-area behavior deserve
 a final real-device review before release.
+
+## Editorial evolution
+
+The second pass preserves those foundations but introduces a recurring graphic
+language: small burgundy squares, compact chapter labels, rectangular colour
+strips and numbered colour fields. Type scale is deliberately concentrated in
+the home headline, Precision introduction, result reveal and scan completion.
+Other headings remain modest. Results use a larger original portrait alongside
+a two-line season title; the horizontal band repeats the existing palette in
+its existing order, without deriving recommendations or confidence from size.
+
+Strong colours have an asymmetric lookbook grid. Everyday neutrals use a quiet
+continuous neutral field; comparison pairs retain equal areas so composition
+does not favour one option. Hex codes appear on hover, keyboard focus or copy
+feedback, and remain in accessible button names. On phones the headline owns
+its row rather than squeezing a season word alongside the portrait.
+
+Precision's charcoal introductory spread gives the recommended flow clear
+priority. Live progress uses numbered square-edged chips: a current burgundy
+chip and saved checkmarks. Readiness changes only existing visual feedback;
+no timing, capture acceptance or measurement logic is affected. Completion
+uses a short typographic reveal, not confetti. Try-on gives more width to the
+photo and treats its unchanged controls as clothing colourways.
+
+Explanations, retake guidance, permission failures, custom inputs and developer
+diagnostics intentionally remain restrained. Motion remains brief and is
+disabled by the existing reduced-motion rules. No external visual dependencies,
+stock imagery, gradients or glass effects were added.

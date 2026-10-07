@@ -32,6 +32,7 @@
   --radius-control: 8px;
   --radius-photo: 12px;
   --radius-camera: 18px;
+  --radius-chip: 2px;
   --content-width: 68rem;
   --reading-width: 46rem;
   --page-gutter: clamp(1.25rem, 4vw, 3rem);
@@ -41,5 +42,8 @@
   --text-body: .9375rem;
   --text-heading: clamp(1.75rem, 3vw, 2.25rem);
   --text-title: clamp(2rem, 4vw, 3rem);
+  --text-editorial: clamp(3.5rem, 8.5vw, 7rem);
+  --text-editorial-compact: clamp(2.75rem, 6vw, 5rem);
+  --palette-band-height: clamp(2.5rem, 5vw, 4rem);
   --motion-fast: 160ms;
 }
