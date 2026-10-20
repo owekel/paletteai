@@ -1,9 +1,11 @@
-import { useEffect, useState } from 'react'
+import { lazy, Suspense, useEffect, useState } from 'react'
 import type { ColorProfile, Screen } from './types/colorProfile'
 import LandingPage from './components/LandingPage'
-import CaptureScreen from './components/CaptureScreen'
-import AnalysisLoading from './components/AnalysisLoading'
-import ResultsPage from './components/ResultsPage'
+import PrivacyPage from './components/PrivacyPage'
+
+const CaptureScreen = lazy(() => import('./components/CaptureScreen'))
+const AnalysisLoading = lazy(() => import('./components/AnalysisLoading'))
+const ResultsPage = lazy(() => import('./components/ResultsPage'))
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>('landing')
@@ -30,19 +32,25 @@ export default function App() {
 
   function handleAnalysisComplete(result: ColorProfile) {
     setProfile(result)
-    // Kept (rather than cleared) now that the results page uses it for the
-    // colour try-on feature. Still never leaves the browser or a server.
+    // Keep the photo in memory for local colour try-on.
     setScreen('results')
   }
 
   function handleStartOver() {
     setProfile(null)
     setImageDataUrl(null)
+    setAnalysisError(null)
+    void import('./services/vision/loadVisionModels')
+      .then(({ releaseStillVisionModels }) => releaseStillVisionModels())
+      .catch(() => { /* A failed chunk load must not prevent starting over. */ })
     setScreen('upload')
   }
 
+  if (window.location.pathname === '/privacy') return <PrivacyPage />
+
   return (
     <div className="min-h-screen bg-paper">
+      <Suspense fallback={<main className="page-shell"><p role="status" className="ui-copy py-16">Opening your colour guide…</p></main>}>
       {screen === 'landing' && <LandingPage onStart={handleStart} />}
 
       {screen === 'upload' && (
@@ -61,9 +69,9 @@ export default function App() {
           imageDataUrl={imageDataUrl}
           onComplete={handleAnalysisComplete}
           onError={handleAnalysisError}
+          onCancel={handleStartOver}
         />
       )}
-
       {screen === 'results' && profile && imageDataUrl && (
         <ResultsPage
           profile={profile}
@@ -71,6 +79,8 @@ export default function App() {
           onStartOver={handleStartOver}
         />
       )}
+      </Suspense>
+      <div className="page-shell pb-6 text-xs"><a className="ui-text-action" href="/privacy">Photo privacy</a></div>
     </div>
   )
 }

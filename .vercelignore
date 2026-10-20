@@ -1,0 +1,17 @@
+# Explicitly exclude local secrets, portraits and generated outputs from CLI uploads.
+.git/
+.env*
+.vercel/
+node_modules/
+dist/
+dist-ssr/
+public/vision/
+tests/local/
+test-results/
+playwright-report/
+*.y4m
+*.pem
+*.key
+*.log
+*.tsbuildinfo
+.DS_Store

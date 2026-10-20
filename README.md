@@ -1,27 +1,97 @@
 # PaletteAI
 
-Photo-based colour analysis and clothing try-on, running in your browser.
-Photos stay local and remain available for try-on until you restart or close
-the page. There is no account, upload service, or saved photo history.
+PaletteAI is a browser-based personal colour guide with guided photo capture,
+colour palettes, and clothing colour try-on. Its analysis and rendering run on
+the visitor's device using React, TypeScript, MediaPipe and canvas.
 
-## Run and check
+Choose a three-photo Precision Analysis, a single guided Quick Analysis, or a
+portrait from your device. Results distinguish a specific season from an
+uncertain candidate group or a broad colour profile. Recommended colours and
+try-on use the same palette.
+
+Photos remain in application memory for the current session. There is no
+account, photo upload endpoint, database, analytics SDK, or saved profile
+history. This is an experimental styling tool; its results are not scientifically
+validated predictions.
+
+## Project status
+
+As of 2026-10-20, the private GitHub repository
+[`owekel/paletteai`](https://github.com/owekel/paletteai) and the Vercel project
+`paletteai` have been created. No deployment is recorded in this handoff.
+The checkout is linked to Vercel, with SSO protection configured for all
+deployments. Enforcement on a hosted preview, runtime and physical-phone
+testing, and approval for public launch remain outstanding. Build targets and
+automated checks do not establish browser or device compatibility.
+
+See [deployment and release instructions](docs/deployment.md),
+[privacy architecture](docs/privacy-architecture.md), and
+[security maintenance](docs/security.md).
+
+## Local development
+
+Use Node.js 24, as specified by `.nvmrc` and `package.json`. From the repository
+root:
 
 ```sh
-npm install
+npm ci
 npm run dev
 ```
 
-Use the local address printed by Vite (usually http://localhost:5173).
+Open the local address printed by Vite. Camera capture needs a secure browser
+context; use localhost for desktop development or an approved HTTPS preview
+for device testing.
 
-- `npm test`: integration checks for 12 subtype palettes, uncertainty,
-  technical rejection, and palette consistency.
-- `npm run lint`: TypeScript checks.
-- `npm run build`: TypeScript checks and production bundle.
-- `npm run preview`: serve the production bundle.
+The development and build commands prepare the vision assets automatically.
+The first run needs internet access to download the pinned public models.
+Subsequent runs reuse matching local files after verifying their checksums.
+No API keys or runtime environment variables are required. `.env.example`
+documents this; never place secrets in a `VITE_*` variable.
 
-MediaPipe downloads its public model files on first use. The photo is never
-sent with those requests. Failed face detection or model loading produces
-a technical-quality retake state, rather than a guessed season.
+## Verification and production build
+
+```sh
+npm run check
+npm run preview
+```
+
+`check` runs TypeScript validation, every discovered `tests/*.test.ts` /
+`tests/*.test.tsx` file, and a production build. A successful build writes
+`dist/`; `preview` serves that existing output with the common security headers
+from `vercel.json`. It is a local inspection tool, not a deployment.
+
+| Command | Purpose |
+| --- | --- |
+| `npm run typecheck` / `npm run lint` | TypeScript validation |
+| `npm test` | Results, capture, lifecycle, upload, Precision and recolouring regression checks |
+| `npm run assets:prepare` | Copy matching MediaPipe runtimes and verify/download pinned model files |
+| `npm run build` | Prepare assets, check TypeScript and produce `dist/` |
+| `npm run preview` | Inspect the production bundle locally |
+
+GitHub Actions runs installation, the complete check, and dependency audits.
+It does not deploy the site. See the workflow and
+[security notes](docs/security.md) for the separately reported build-tool
+advisories.
+
+## Runtime architecture
+
+The app is a static single-page application with state-based screen navigation.
+There is no client router or application backend. `/privacy` is the only
+explicit additional path: `App.tsx` renders the privacy page and Vercel rewrites
+that path to `index.html`.
+
+The browser downloads application files, bundled fonts, MediaPipe WASM and two
+public models from the same website. `scripts/vision-assets.json` pins model
+URLs and SHA-256 hashes; `scripts/prepare-assets.mjs` rejects changed bytes.
+The matching WASM files come from the locked MediaPipe package. Photos are
+never included in those asset requests.
+
+Local photo selection accepts JPG, PNG and WebP with explicit file-size and
+pixel-dimension limits. Camera capture supports manual capture when live
+guidance is unavailable, releases the camera when capture ends or the page is
+hidden, and uses the actual camera setting to decide whether to mirror the
+preview. Model-loading failures and unusable photos are separate failure cases;
+neither should invent a season result.
 
 ## Results flow
 
@@ -99,7 +169,7 @@ optional local photo picker replaces only the try-on image, not the fixture
 measurements; use it to test pair switching with actual clothing. Use the
 normal upload flow to test a photo's real analysis.
 
-The collapsed developer section on actual results retains all measurement,
+In development, the collapsed developer section on actual results retains all measurement,
 lighting, skin-region, stability, prototype, and quality diagnostics, and
 adds the presentation decision, consensus weights, supported styling axes,
 per-colour support, dimension fit, and temperature dependence.

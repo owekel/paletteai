@@ -8,6 +8,7 @@
 // https://ai.google.dev/edge/mediapipe/solutions/vision/face_landmarker
 
 import { getFaceLandmarker } from './loadVisionModels'
+import { throwIfAborted } from './modelLifecycle'
 
 export interface NormalizedRect {
   xStart: number
@@ -152,9 +153,12 @@ function irisSampleRegion(
 // Accepts a still photo (the existing post-capture use) or a live video
 // element (used for the live positioning guide during camera preview) —
 // same model, same landmark math either way, just a different pixel source.
-export async function detectFaceRegions(image: HTMLImageElement | HTMLVideoElement): Promise<FaceRegions | null> {
-  const landmarker = await getFaceLandmarker()
+export async function detectFaceRegions(image: HTMLImageElement | HTMLVideoElement, signal?: AbortSignal): Promise<FaceRegions | null> {
+  throwIfAborted(signal)
+  const landmarker = await getFaceLandmarker(signal)
+  throwIfAborted(signal)
   const result = landmarker.detect(image)
+  throwIfAborted(signal)
   return faceRegionsFromLandmarks(result.faceLandmarks?.[0])
 }
 

@@ -72,7 +72,7 @@ export default function CameraCapture({ onAnalyzedImage, onUseUploadInstead, onC
     <div className="capture-layout">
       <section aria-label={reviewing ? 'Photo review' : 'Live camera'} className="min-w-0">
         <div className={`capture-view ${holding && !reviewing ? 'capture-holding' : ''}`}>
-          <video ref={capture.videoRef} autoPlay playsInline muted className={`capture-video ${reviewing || phase === 'unavailable' ? 'invisible' : ''}`} />
+          <video ref={capture.videoRef} autoPlay playsInline muted style={{ transform: capture.facingMode === 'user' ? 'scaleX(-1)' : 'none' }} className={`capture-video ${reviewing || phase === 'unavailable' ? 'invisible' : ''}`} />
           {runtime.fixtureImage && !reviewing && <img src={runtime.fixtureImage} alt="Developer camera simulation" className="capture-video" />}
           {image && reviewing && <img src={image} alt="Your captured photo" className="absolute inset-0 h-full w-full object-cover" />}
           {!reviewing && phase !== 'unavailable' && <>
@@ -80,11 +80,12 @@ export default function CameraCapture({ onAnalyzedImage, onUseUploadInstead, onC
             <svg className="capture-guide" viewBox="0 0 300 400" aria-hidden="true"><ellipse cx="150" cy="172" rx="91" ry="104" fill="none" stroke="currentColor" strokeWidth="1.25" strokeDasharray="16 10" /><path d="M58 338 Q72 297 112 296 M188 296 Q228 297 242 338" fill="none" stroke="currentColor" strokeOpacity=".5" strokeWidth="1" /></svg>
             {(phase === 'live' || choosing) && <div className="capture-mobile-guidance" aria-live="polite"><h2 className="font-display text-2xl">{title}</h2><p className="mt-1 text-xs leading-relaxed text-white/85">{detail}</p></div>}
           </>}
-          {phase === 'opening' && <div className="capture-cover"><span className="capture-spinner" /><p className="mt-4 text-sm">Waiting for your camera</p><p className="mt-2 max-w-[15rem] text-xs leading-relaxed text-white/65">Allow camera access in your browser to get started.</p></div>}
+          {phase === 'opening' && <div className="capture-cover">{!capture.paused && <span className="capture-spinner" />}<p className="mt-4 text-sm">{capture.paused ? 'Camera paused' : 'Waiting for your camera'}</p><p className="mt-2 max-w-[15rem] text-xs leading-relaxed text-white/65">{capture.paused ? 'Return to this page when you’re ready.' : 'Allow camera access in your browser to get started.'}</p></div>}
           {phase === 'unavailable' && <div className="capture-cover"><CameraIcon /><p className="mt-5 font-display text-2xl">Another way in.</p><p className="mt-3 max-w-[15rem] text-sm leading-relaxed text-white/65">A photo from your library works too.</p></div>}
           {phase === 'verifying' && <div role="status" className="absolute inset-x-4 bottom-4 flex items-center gap-3 rounded-lg bg-paper px-4 py-3 text-sm"><span className="capture-spinner capture-spinner-dark" />Checking your photo…</div>}
         </div>
-        <p className="mt-3 text-center text-[11px] leading-relaxed text-ink-soft">{reviewing ? 'Saved as the camera sees you, without the mirror.' : 'A mirrored preview. Your captured photo will be unmirrored.'}</p>
+        <p className="mt-3 text-center text-[11px] leading-relaxed text-ink-soft">{reviewing ? 'Saved as the camera sees you, without the mirror.' : capture.facingMode === 'user' ? 'A mirrored preview. Your captured photo will be unmirrored.' : 'Your photo will be saved as the camera sees it.'}</p>
+        {phase === 'live' && capture.canSwitchCamera && <div className="mt-2 text-center"><button className="ui-text-action min-h-11" onClick={capture.switchCamera}>Switch camera</button></div>}
       </section>
       <section className="capture-panel" aria-label="Capture guidance">
         {precision?.onUseTwo && <div className="mb-6 rounded-xl border border-hairline bg-white/60 p-4"><h2 className="font-display text-xl">Two good photos are ready.</h2><p className="mt-2 text-xs leading-relaxed text-ink-soft">You can continue with these. We’ll leave more room for uncertainty, or keep trying for a third.</p><button className="capture-secondary mt-3 w-full" onClick={precision.onUseTwo}>Use my two good photos</button></div>}

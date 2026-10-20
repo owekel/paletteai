@@ -5,6 +5,7 @@
 // instead of a guessed rectangle.
 
 import { getHairSegmenter } from './loadVisionModels'
+import { throwIfAborted } from './modelLifecycle'
 
 // Category indices as defined by the selfie_multiclass_256x256 model.
 export const BACKGROUND_CATEGORY = 0
@@ -20,14 +21,17 @@ export interface HairMask {
   height: number
 }
 
-export async function detectHairMask(image: HTMLImageElement): Promise<HairMask | null> {
-  const segmenter = await getHairSegmenter()
+export async function detectHairMask(image: HTMLImageElement, signal?: AbortSignal): Promise<HairMask | null> {
+  throwIfAborted(signal)
+  const segmenter = await getHairSegmenter(signal)
+  throwIfAborted(signal)
   const result = segmenter.segment(image)
   const mask = result.categoryMask
 
   if (!mask) return null
 
   try {
+    throwIfAborted(signal)
     // .slice() makes a plain JS-owned copy. This matters: MediaPipe's array
     // may be a live view into WASM memory, and mask.close() below can free
     // that memory — copying first guarantees the data we return stays valid

@@ -14,6 +14,7 @@
 import { detectHairMask, isClothesAtRelativePosition, type HairMask } from './vision/hairSegmentation'
 import { clamp, hexToRgb, hslToRgb, rgbToHsl, type RGB } from './colorUtils'
 import { garmentTrimap, sampleGarmentEdgeTone, type ClothingBoundaryDiagnostics } from './clothingEdgeMatte'
+import { loadVisionImage, throwIfAborted } from './vision/modelLifecycle'
 
 export interface ClothingRecolorSession {
   imageWidth: number
@@ -68,15 +69,6 @@ function percentileFromHistogram(histogram: Uint32Array, pixelCount: number, per
 function smoothstep(min: number, max: number, value: number): number {
   const position = clamp((value - min) / (max - min), 0, 1)
   return position * position * (3 - 2 * position)
-}
-
-function loadImage(dataUrl: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error('Could not load the photo.'))
-    image.src = dataUrl
-  })
 }
 
 // Builds a smooth alpha mask marking the clothing region at the photo's
@@ -307,34 +299,42 @@ export function buildFeatheredAlphaMask(
 // segmentation model once, and precomputes the feathered clothing mask.
 // The returned session is then reused for every colour the person tries,
 // so switching colours doesn't repeat the expensive part.
-export async function prepareClothingRecolorSession(imageDataUrl: string): Promise<ClothingRecolorSession | null> {
-  const image = await loadImage(imageDataUrl)
+export async function prepareClothingRecolorSession(imageDataUrl: string, signal?: AbortSignal): Promise<ClothingRecolorSession | null> {
+  throwIfAborted(signal)
+  const image = await loadVisionImage(imageDataUrl, signal)
+  throwIfAborted(signal)
 
   const canvas = document.createElement('canvas')
-  canvas.width = image.naturalWidth
-  canvas.height = image.naturalHeight
-  const context = canvas.getContext('2d', { willReadFrequently: true })
-  if (!context) return null
-  context.drawImage(image, 0, 0)
+  try {
+    canvas.width = image.naturalWidth
+    canvas.height = image.naturalHeight
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    if (!context) throw new Error('Canvas is not supported in this browser.')
+    context.drawImage(image, 0, 0)
 
-  const mask = await detectHairMask(image)
-  if (!mask) return null
+    const mask = await detectHairMask(image, signal)
+    throwIfAborted(signal)
+    if (!mask) return null
 
-  const originalImageData = context.getImageData(0, 0, canvas.width, canvas.height)
-  const { alpha, edgeBackground, edgeForeground, shadowLightness, referenceLightness, highlightLightness, hasClothing } =
-    buildFeatheredAlphaMask(mask, originalImageData, canvas.width, canvas.height)
+    const originalImageData = context.getImageData(0, 0, canvas.width, canvas.height)
+    const { alpha, edgeBackground, edgeForeground, shadowLightness, referenceLightness, highlightLightness, hasClothing } =
+      buildFeatheredAlphaMask(mask, originalImageData, canvas.width, canvas.height)
+    throwIfAborted(signal)
 
-  return {
-    imageWidth: canvas.width,
-    imageHeight: canvas.height,
-    originalImageData,
-    featheredAlpha: alpha,
-    edgeBackground,
-    edgeForeground,
-    shadowLightness,
-    referenceLightness,
-    highlightLightness,
-    hasClothing,
+    return {
+      imageWidth: canvas.width,
+      imageHeight: canvas.height,
+      originalImageData,
+      featheredAlpha: alpha,
+      edgeBackground,
+      edgeForeground,
+      shadowLightness,
+      referenceLightness,
+      highlightLightness,
+      hasClothing,
+    }
+  } finally {
+    canvas.width = canvas.height = 0
   }
 }
 
