@@ -103,7 +103,7 @@ await test('Cancellation while video playback opens releases the camera and prev
 
 await test('Cancellation during device discovery cannot publish a stale camera source', async () => {
   const devices = deferred<MediaDeviceInfo[]>()
-  await withBrowser({ enumerate: () => devices.promise }, async b => {
+  await withBrowser({ facingMode: 'user', enumerate: () => devices.promise }, async b => {
     const pending = b.runtime.open(b.video, b.abort.signal)
     await flush(); b.abort.abort(); devices.resolve([])
     await assert.rejects(pending, { name: 'AbortError' })
@@ -132,11 +132,21 @@ await test('Front and rear requests remain optional preferences; mirroring follo
   })
 })
 
+await test('Multiple cameras without a known front/rear setting do not advertise a facing-mode switch', async () => {
+  for (const facingMode of [undefined, 'left']) await withBrowser({ facingMode, cameras: 2 }, async b => {
+    const source = await b.runtime.open(b.video, b.abort.signal)
+    assert.equal(source.facingMode, undefined)
+    assert.equal(source.canSwitchCamera, false)
+    assert.equal(source.capture(), 'data:image/jpeg;base64,frame')
+    source.stop()
+  })
+})
+
 await test('A single camera or missing facing-mode support hides switching; restricted enumeration preserves capture', async () => {
   for (const options of [
     { cameras: 1 }, { cameras: 2, supportsFacingMode: false },
     { enumerate: async () => { throw new DOMException('Blocked', 'NotAllowedError') } },
-  ]) await withBrowser(options, async b => {
+  ]) await withBrowser({ facingMode: 'user', ...options }, async b => {
     const source = await b.runtime.open(b.video, b.abort.signal)
     assert.equal(source.canSwitchCamera, false)
     assert.equal(source.capture(), 'data:image/jpeg;base64,frame')

@@ -68,7 +68,7 @@ export function createBrowserCaptureRuntime(loadLandmarker = createCaptureLandma
       const setting = stream.getVideoTracks()[0]?.getSettings?.().facingMode
       const facingMode = setting === 'user' || setting === 'environment' ? setting : undefined
       let canSwitchCamera = false
-      if (navigator.mediaDevices.getSupportedConstraints?.().facingMode && navigator.mediaDevices.enumerateDevices) {
+      if (facingMode && navigator.mediaDevices.getSupportedConstraints?.().facingMode && navigator.mediaDevices.enumerateDevices) {
         try { canSwitchCamera = (await navigator.mediaDevices.enumerateDevices()).filter(device => device.kind === 'videoinput').length > 1 }
         catch { /* The current camera remains usable if device enumeration is restricted. */ }
       }
