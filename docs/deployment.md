@@ -25,11 +25,14 @@ before creation and anonymous access remained blocked. The subsequent
 `--environment preview` deployments are explicitly Preview. Do not promote,
 change all-deployment protection, or merge to `main` as part of preview QA.
 
-GitHub Actions independently verifies pushes. Vercel's repository connection is
-confirmed, but the first post-connection push did not produce an automatic
-deployment during inspection. The current preview was deployed explicitly with
-the CLI. Automatic push-to-preview delivery remains an operational acceptance
-item; do not infer that it works just because the connection is displayed.
+GitHub Actions independently verifies pushes. Automatic Git delivery is also
+confirmed: Vercel created `dpl_GEUCi4a3Cx4YefDhAoRzq7jJjJmJ` from GitHub commit
+`512e57f` (`source: git`, Preview, READY). Its URL is
+[paletteai-587ifeoir-owekel.vercel.app](https://paletteai-587ifeoir-owekel.vercel.app).
+The first event took several minutes after connection; a CLI preview of the
+same application commit was tested meanwhile. Subsequent non-main pushes create
+protected previews. Keep the [draft release review](https://github.com/owekel/paletteai/pull/1)
+unmerged until the acceptance checks and launch approval are complete.
 
 ## Build configuration
 

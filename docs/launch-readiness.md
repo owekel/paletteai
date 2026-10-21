@@ -9,9 +9,12 @@
 - [Protected Preview](https://paletteai-fi909aul4-owekel.vercel.app):
   `dpl_CrDQVj2pwkzUD1x2TqgxwqbSRYU4`, **READY**, Vite, 131 checks passed in the hosted build.
 - Vercel project `paletteai` is connected to GitHub; the GitHub App installation
-  is limited to this repository. The first post-connection push ran GitHub checks
-  but produced no automatic Vercel build during inspection. The current preview
-  was deployed explicitly; automatic delivery remains an acceptance item.
+  is limited to this repository. Automatic delivery is confirmed: Vercel created
+  [this Git preview](https://paletteai-587ifeoir-owekel.vercel.app) from `512e57f`
+  with `source: git`, Preview and READY. Initial event delivery took several
+  minutes. The main review URL above is the separately tested CLI build of the
+  same application commit. [Draft review #1](https://github.com/owekel/paletteai/pull/1)
+  remains unmerged; later documentation-only pushes do not change the app.
 - Vercel Authentication remains enabled for **all** deployments. The temporary
   test credential created by `vercel curl` was revoked; zero automation bypass
   entries remained. No shareable bypass link was created.
@@ -47,6 +50,9 @@
 - Hosted palette/custom-hex selection, Original/Try-on toggle, restart and privacy
   navigation/direct refresh worked. No application exception or CSP error was
   observed; MediaPipe emits CPU/feedback warnings and an INFO message on stderr.
+- Final application commit `512e57f` was rechecked on the hosted CLI preview:
+  anonymous access redirected to sign-in; the mobile entry/upload screens,
+  real model analysis, constrained result and actual try-on completed again.
 - Viewport widths 320, 390, 768 and 1440 were verified in the actual browser;
   inspected result/try-on views had no horizontal overflow. This was emulation,
   not physical-device testing.
@@ -84,7 +90,6 @@ secure erasure.
 
 ## Remaining acceptance work — before public launch
 
-- Confirm automatic push-to-preview delivery after the new GitHub installation.
 - Complete real-camera three-photo Precision and Quick sessions on desktop, iPhone
   Safari and Android Chrome. Test permission denial/recovery, switching, backgrounding,
   manual/automatic capture, retake, restart and portrait orientation.
