@@ -12,6 +12,6 @@ export default function PrivacyPage() {
       <section><h2 className="ui-heading">What the site downloads.</h2><p className="ui-copy mt-3">PaletteAI downloads its interface, fonts and computer-vision models from this website. The hosting provider, Vercel, receives ordinary connection details such as your IP address and requested asset URLs. Your photos and measurements are not part of those requests. Browser caching may retain the public app files and models, but the app does not store your photos in browser storage.</p></section>
       <section><h2 className="ui-heading">A guide, not a verdict.</h2><p className="ui-copy mt-3">This is an experimental personal styling tool. Lighting, camera processing and visible features can affect the result. The analysis is not a medical assessment or a scientifically validated prediction, and a preview cannot reproduce the exact appearance of a fabric.</p></section>
     </div>
-    <footer className="ui-footer"><p>No photo uploads. No saved profiles.</p><a href="/third-party-notices.txt" className="ui-text-action">Open-source notices</a><a href="/" className="ui-text-action">Start a colour analysis →</a></footer>
+    <footer className="ui-footer"><p>No photo uploads. No saved profiles.</p><nav className="ui-footer-links" aria-label="Privacy page links"><a href="/third-party-notices.txt" className="ui-text-action">Open-source notices</a><a href="/" className="ui-text-action">Start a colour analysis →</a></nav></footer>
   </main>
 }

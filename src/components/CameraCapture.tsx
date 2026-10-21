@@ -72,7 +72,7 @@ export default function CameraCapture({ onAnalyzedImage, onUseUploadInstead, onC
     <div className="capture-layout">
       <section aria-label={reviewing ? 'Photo review' : 'Live camera'} className="min-w-0">
         <div className={`capture-view ${holding && !reviewing ? 'capture-holding' : ''}`}>
-          <video ref={capture.videoRef} autoPlay playsInline muted style={{ transform: capture.facingMode === 'user' ? 'scaleX(-1)' : 'none' }} className={`capture-video ${reviewing || phase === 'unavailable' ? 'invisible' : ''}`} />
+          <video ref={capture.videoRef} autoPlay playsInline muted style={{ transform: capture.mirrorPreview ? 'scaleX(-1)' : 'none' }} className={`capture-video ${reviewing || phase === 'unavailable' ? 'invisible' : ''}`} />
           {runtime.fixtureImage && !reviewing && <img src={runtime.fixtureImage} alt="Developer camera simulation" className="capture-video" />}
           {image && reviewing && <img src={image} alt="Your captured photo" className="absolute inset-0 h-full w-full object-cover" />}
           {!reviewing && phase !== 'unavailable' && <>
@@ -84,7 +84,7 @@ export default function CameraCapture({ onAnalyzedImage, onUseUploadInstead, onC
           {phase === 'unavailable' && <div className="capture-cover"><CameraIcon /><p className="mt-5 font-display text-2xl">Another way in.</p><p className="mt-3 max-w-[15rem] text-sm leading-relaxed text-white/65">A photo from your library works too.</p></div>}
           {phase === 'verifying' && <div role="status" className="absolute inset-x-4 bottom-4 flex items-center gap-3 rounded-lg bg-paper px-4 py-3 text-sm"><span className="capture-spinner capture-spinner-dark" />Checking your photo…</div>}
         </div>
-        <p className="mt-3 text-center text-[11px] leading-relaxed text-ink-soft">{reviewing ? 'Saved as the camera sees you, without the mirror.' : capture.facingMode === 'user' ? 'A mirrored preview. Your captured photo will be unmirrored.' : 'Your photo will be saved as the camera sees it.'}</p>
+        <p className="mt-3 text-center text-[11px] leading-relaxed text-ink-soft">{reviewing ? 'Saved as the camera sees you, without the mirror.' : capture.mirrorPreview ? 'A mirrored preview. Your captured photo will be unmirrored.' : 'Your photo will be saved as the camera sees it.'}</p>
         {phase === 'live' && capture.canSwitchCamera && <div className="mt-2 text-center"><button className="ui-text-action min-h-11" onClick={capture.switchCamera}>Switch camera</button></div>}
       </section>
       <section className="capture-panel" aria-label="Capture guidance">

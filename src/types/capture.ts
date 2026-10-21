@@ -61,8 +61,10 @@ export interface CaptureSource {
   sample(): Promise<CaptureObservation>
   capture(): string
   stop(): void
-  /** Actual track setting, not the requested preference. Unknown cameras are not mirrored. */
+  /** Actual track setting only; used to enable supported front/rear switching. */
   facingMode?: CaptureFacingMode
+  /** Live presentation only; includes recognized front webcams without facingMode. */
+  mirrorPreview?: boolean
   canSwitchCamera?: boolean
 }
 export interface CaptureRuntime {

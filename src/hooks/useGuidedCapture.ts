@@ -30,6 +30,7 @@ export function useGuidedCapture(runtime: CaptureRuntime) {
   const [failedSelections, setFailedSelections] = useState(0)
   const preferredCamera = useRef<CaptureFacingMode>('user')
   const [facingMode, setFacingMode] = useState<CaptureFacingMode>()
+  const [mirrorPreview, setMirrorPreview] = useState(false)
   const [canSwitchCamera, setCanSwitchCamera] = useState(false)
 
   function switchCamera() {
@@ -87,7 +88,7 @@ export function useGuidedCapture(runtime: CaptureRuntime) {
     setPhase('opening'); setError(''); setImage(undefined); setProfile(undefined); setSelection(undefined)
     setSelectionProblem(undefined)
     setQuality(undefined); setAnalyzer('loading'); setFrames([]); setPaused(false)
-    setFacingMode(undefined); setCanSwitchCamera(false)
+    setFacingMode(undefined); setMirrorPreview(false); setCanSwitchCamera(false)
     setWindowState(new CaptureStability().update('no-face', 0))
     const current = () => mounted.current && token === epoch.current && !abort.signal.aborted
     const clearWindow = () => { buffer.current.clear(); stability.current.reset(); setFrames([]); setWindowState(new CaptureStability().update('no-face', 0)) }
@@ -168,6 +169,7 @@ export function useGuidedCapture(runtime: CaptureRuntime) {
     else void runtime.open(videoRef.current!, abort.signal, { facingMode: preferredCamera.current }).then(source => {
       if (!current()) { source.stop(); return }
       sourceRef.current = source; setFacingMode(source.facingMode); setCanSwitchCamera(!!source.canSwitchCamera)
+      setMirrorPreview(source.mirrorPreview ?? source.facingMode === 'user')
       setPhase('live'); void poll(source)
     }).catch(reason => { if (current()) { setError(describeCameraError(reason)); setPhase('unavailable') } })
     return () => {
@@ -180,6 +182,6 @@ export function useGuidedCapture(runtime: CaptureRuntime) {
     }
   }, [attempt, runtime])
 
-  return { videoRef, phase, analyzer, quality, windowState, frames, selection, selectionProblem, image, profile, error, paused, failedSelections, facingMode, canSwitchCamera,
+  return { videoRef, phase, analyzer, quality, windowState, frames, selection, selectionProblem, image, profile, error, paused, failedSelections, facingMode, mirrorPreview, canSwitchCamera,
     manual, switchCamera, retake: () => setAttempt(n => n + 1), retryVerification: () => { if (image) void verify(image, ++epoch.current) } }
 }

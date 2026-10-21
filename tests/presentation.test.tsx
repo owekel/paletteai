@@ -7,10 +7,18 @@ import { resultFixture, FIXTURE_IMAGE } from '../src/dev/resultsFixtures'
 import { SHADOW_SEASON_PROTOTYPES } from '../src/data/shadowSeasonCalibration'
 import PaletteStrip from '../src/components/PaletteStrip'
 import ColourPalette from '../src/components/ColourPalette'
+import PrivacyPage from '../src/components/PrivacyPage'
 
 let checks = 0
 function check(name: string, run: () => void) { run(); checks++; console.log(`✓ ${name}`) }
 const noop = () => {}
+check('Privacy footer groups both native links in an accessible wrapping navigation', () => {
+  const html = renderToStaticMarkup(<PrivacyPage />)
+  assert.match(html, /<nav class="ui-footer-links" aria-label="Privacy page links">/)
+  assert.match(html, /href="\/third-party-notices.txt"[^>]*>Open-source notices<\/a>/)
+  assert.match(html, /href="\/"[^>]*>Start a colour analysis →<\/a>/)
+  assert.ok(!html.includes('tabindex="-1"'))
+})
 const result = (scenario: Parameters<typeof resultFixture>[0], id?: Parameters<typeof resultFixture>[1]) =>
   renderToStaticMarkup(<ResultsPage profile={resultFixture(scenario, id)} capturedImageDataUrl={FIXTURE_IMAGE} onStartOver={noop} />)
 

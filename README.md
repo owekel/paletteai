@@ -22,7 +22,7 @@ GitHub App is installed for this repository only, and project `paletteai` is
 connected. A [sign-in-protected preview](https://paletteai-fi909aul4-owekel.vercel.app)
 is available for review; public launch is **not approved**.
 
-The local suite has 131 passing checks. Hosted Chromium photo analysis and
+The local suite has 135 passing checks. Hosted Chromium photo analysis and
 try-on have been exercised, but real-camera and physical-phone acceptance
 remain outstanding. See the exact deployment, evidence and outstanding items
 in [launch readiness](docs/launch-readiness.md). Build targets and viewport
@@ -93,8 +93,9 @@ never included in those asset requests.
 Local photo selection accepts JPG, PNG and WebP with explicit file-size and
 pixel-dimension limits. Camera capture supports manual capture when live
 guidance is unavailable, releases the camera when capture ends or the page is
-hidden, and uses the actual camera setting to decide whether to mirror the
-preview. Model-loading failures and unusable photos are separate failure cases;
+hidden, and mirrors the live front-camera preview using actual facing mode or a
+recognized front-webcam label when that metadata is missing. Captured pixels
+remain unmirrored. See [UI follow-up verification](docs/ui-preview-followup.md). Model-loading failures and unusable photos are separate failure cases;
 neither should invent a season result.
 
 ## Results flow

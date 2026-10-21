@@ -30,6 +30,18 @@ export function drawCaptureFrame(video: HTMLVideoElement, canvas: HTMLCanvasElem
   ctx.drawImage(video, (vw - sw) / 2, (vh - sh) / 2, sw, sh, 0, 0, canvas.width, canvas.height)
 }
 
+/** Presentation only. Never infer direction from an optional getUserMedia preference. */
+export function shouldMirrorCameraPreview(track?: Pick<MediaStreamTrack, 'getSettings' | 'label'>): boolean {
+  const facing = track?.getSettings?.().facingMode
+  if (facing) return facing === 'user'
+  const label = track?.label ?? ''
+  // Explicit rear labels win, including iPhone Continuity cameras on a Mac.
+  if (/\b(back|rear|environment)\b/i.test(label)) return false
+  // Mac built-in webcams commonly omit facingMode. Keep unidentified/USB
+  // cameras unmirrored rather than guessing that an ignored preference succeeded.
+  return /\b(front|user|facetime)\b|\bmacbook\b.*\bcamera\b|\bbuilt[- ]?in\b.*\bcamera\b/i.test(label)
+}
+
 /** The injectable model loader keeps lifecycle tests independent of network/model downloads. */
 export function createBrowserCaptureRuntime(loadLandmarker = createCaptureLandmarker): CaptureRuntime { return {
   async open(video, signal, options): Promise<CaptureSource> {
@@ -65,7 +77,8 @@ export function createBrowserCaptureRuntime(loadLandmarker = createCaptureLandma
         if (stopped || failed) { value.close(); return }
         model = value
       }).catch(() => { clearTimeout(modelTimer); failed = true })
-      const setting = stream.getVideoTracks()[0]?.getSettings?.().facingMode
+      const track = stream.getVideoTracks()[0]
+      const setting = track?.getSettings?.().facingMode
       const facingMode = setting === 'user' || setting === 'environment' ? setting : undefined
       let canSwitchCamera = false
       if (facingMode && navigator.mediaDevices.getSupportedConstraints?.().facingMode && navigator.mediaDevices.enumerateDevices) {
@@ -74,7 +87,7 @@ export function createBrowserCaptureRuntime(loadLandmarker = createCaptureLandma
       }
       if (stopped) throw new DOMException('Cancelled', 'AbortError')
       return {
-        facingMode, canSwitchCamera,
+        facingMode, mirrorPreview: shouldMirrorCameraPreview(track), canSwitchCamera,
         stop,
         capture() {
           if (stopped) throw new Error('Camera stopped')

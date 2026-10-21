@@ -2,6 +2,14 @@
 
 2026-10-21 — protected review candidate. Public launch is **not approved**.
 
+## UI follow-up — 2026-10-21
+
+The privacy-link spacing and Mac front-camera preview follow-up is recorded in
+[UI verification](ui-preview-followup.md). It adds four focused regression checks
+(135 total); physical Mac/iPhone confirmation remains required. The updated
+protected preview and commit are recorded in [draft PR #1](https://github.com/owekel/paletteai/pull/1).
+The candidate URLs below describe the earlier baseline verification.
+
 ## Candidate and access
 
 - Private source: [owekel/paletteai](https://github.com/owekel/paletteai).

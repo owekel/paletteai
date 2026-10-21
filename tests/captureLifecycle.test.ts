@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import type { FaceLandmarker } from '@mediapipe/tasks-vision'
-import { createBrowserCaptureRuntime, describeCameraError } from '../src/services/capture/cameraRuntime'
+import { createBrowserCaptureRuntime, describeCameraError, shouldMirrorCameraPreview } from '../src/services/capture/cameraRuntime'
 
 let passed = 0
 async function test(name: string, run: () => void | Promise<void>) { await run(); passed++; console.log(`✓ ${name}`) }
@@ -14,6 +14,7 @@ async function flush() { await Promise.resolve(); await Promise.resolve() }
 interface BrowserOptions {
   secure?: boolean
   facingMode?: string
+  label?: string
   cameras?: number
   supportsFacingMode?: boolean
   permissionError?: string
@@ -38,11 +39,11 @@ function makeBrowser(options: BrowserOptions) {
   const state = { stops: 0, pauses: 0, loads: 0, closes: 0, enumerations: 0, requests: [] as MediaStreamConstraints[] }
   const abort = new AbortController(), loading = deferred<FaceLandmarker>()
   const model = { close: () => { state.closes++ }, detect: () => ({ faceLandmarks: [] }) } as unknown as FaceLandmarker
-  const track = { readyState: 'live', stop() { state.stops++; this.readyState = 'ended' }, getSettings: () => ({ facingMode: options.facingMode }) }
+  const track = { label: options.label ?? '', readyState: 'live', stop() { state.stops++; this.readyState = 'ended' }, getSettings: () => ({ facingMode: options.facingMode }) }
   const stream = { getTracks: () => [track], getVideoTracks: () => [track] }
   const canvases: HTMLCanvasElement[] = []
   const document = { createElement: () => {
-    const canvas = { width: 0, height: 0, getContext: () => ({ drawImage() {} }), toDataURL: () => 'data:image/jpeg;base64,frame' } as unknown as HTMLCanvasElement
+    const canvas = { width: 0, height: 0, getContext: () => ({ canvas, drawImage() {} }), toDataURL: () => 'data:image/jpeg;base64,frame' } as unknown as HTMLCanvasElement
     canvases.push(canvas)
     return canvas
   } }
@@ -120,6 +121,7 @@ await test('Front and rear requests remain optional preferences; mirroring follo
         facingMode: { ideal: requested }, width: { ideal: 1280 }, height: { ideal: 960 },
       } }])
       assert.equal(source.facingMode, 'environment')
+      assert.equal(source.mirrorPreview, false)
       assert.equal(source.canSwitchCamera, true)
       source.stop()
     })
@@ -127,8 +129,38 @@ await test('Front and rear requests remain optional preferences; mirroring follo
   await withBrowser({}, async b => {
     const source = await b.runtime.open(b.video, b.abort.signal)
     assert.equal(source.facingMode, undefined)
+    assert.equal(source.mirrorPreview, false)
     assert.equal(source.canSwitchCamera, false)
     source.stop()
+  })
+})
+
+await test('Live mirroring respects actual direction before conservative front-camera label fallbacks', () => {
+  for (const [facingMode, label, expected] of [
+    ['user', 'Camera', true], ['environment', 'FaceTime HD Camera (Built-in)', false],
+    ['left', 'Front Camera', false], ['right', 'Front Camera', false],
+    [undefined, 'FaceTime HD Camera (Built-in)', true], [undefined, 'FaceTime HD Camera', true],
+    [undefined, 'MacBook Pro Camera', true], [undefined, 'Built-in Camera', true],
+    [undefined, 'iPhone Front Camera', true], [undefined, 'iPhone Back Camera', false],
+    [undefined, 'Rear Front Camera', false], [undefined, 'USB Camera', false], [undefined, '', false],
+  ] as const) {
+    assert.equal(shouldMirrorCameraPreview({ label, getSettings: () => ({ facingMode }) }), expected, `${facingMode}: ${label}`)
+  }
+  assert.equal(shouldMirrorCameraPreview(), false)
+})
+
+await test('Mac front-camera fallback changes preview only and does not invent switch support', async () => {
+  await withBrowser({ label: 'FaceTime HD Camera (Built-in)', cameras: 2 }, async b => {
+    const source = await b.runtime.open(b.video, b.abort.signal)
+    assert.equal(source.mirrorPreview, true)
+    assert.equal(source.facingMode, undefined)
+    assert.equal(source.canSwitchCamera, false)
+    // The canvas mock provides drawImage only: adding a capture transform fails.
+    assert.equal(source.capture(), 'data:image/jpeg;base64,frame')
+    b.loading.resolve(b.model); await flush()
+    assert.equal((await source.sample()).analyzer, 'ready')
+    source.stop()
+    assert.equal(b.state.stops, 1); assert.equal(b.video.srcObject, null)
   })
 })
 
