@@ -1,10 +1,11 @@
 # Privacy architecture
 
 This document describes the application code and configuration reviewed on
-2026-10-20. It does not certify a deployed service: runtime network inspection
-and physical-device acceptance remain pending. Vercel SSO protection is
-configured for all deployments, but its enforcement still needs verification
-on the first hosted preview.
+2026-10-21. Source inspection, hosted asset checks and a Chromium photo/try-on
+journey are recorded in [launch readiness](launch-readiness.md). A complete
+network/storage trace of real camera use and physical-device acceptance remain
+pending. Vercel Authentication is configured for all deployments; anonymous
+requests to the preview and bootstrap alias were verified to require sign-in.
 
 ## Processing boundary
 

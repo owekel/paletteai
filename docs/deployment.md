@@ -1,9 +1,9 @@
 # Deployment and release
 
-This document describes the current configuration and the remaining release
-work. It is not a deployment-success record.
+This document describes the configuration and release procedure. The exact
+verification record and remaining acceptance work are in [launch readiness](launch-readiness.md).
 
-## Handoff status — 2026-10-20
+## Handoff status — 2026-10-21
 
 | Item | Recorded state |
 | --- | --- |
@@ -11,15 +11,25 @@ work. It is not a deployment-success record.
 | Hosting project | Vercel project `paletteai` created; local checkout linked |
 | Project ID | `prj_pC1sAOSErJjzSV2W7WY515BmDZNx` |
 | Team ID | `team_TVv8mejjkym3InSYKZAray6v` |
-| Deployment protection | Project setting `ssoProtection` is `all`; hosted enforcement not yet verified |
-| Deployment | No deployment recorded at this handoff |
-| Production URL / domain | No verified deployment URL or custom domain recorded |
-| Release acceptance | Hosted checks, physical-phone QA and owner approval for public launch pending |
+| Deployment protection | Vercel Authentication for **all** deployments; anonymous requests redirect to sign-in |
+| Review branch | `codex/production-readiness`; application checkpoint `512e57f` |
+| Protected preview | [paletteai-fi909aul4-owekel.vercel.app](https://paletteai-fi909aul4-owekel.vercel.app) |
+| Git connection | `owekel/paletteai` connected; GitHub App limited to this repository |
+| Production branch | `main`; integration changes have not been merged there |
+| Production URL / domain | A protected bootstrap alias exists at `paletteai-sepia.vercel.app`; no custom domain or public launch |
+| Release acceptance | Physical-phone/live-camera QA and owner approval remain required |
 
-Confirm the current provider state before continuing. Local project linking
-does not prove Git-based deployments are connected or that a build has run.
-Verify access protection on the first actual deployment. Do not infer a public
-URL from the project name.
+Confirm current provider state before releases. The first CLI request was
+labelled Production by Vercel despite requesting a preview; it was protected
+before creation and anonymous access remained blocked. The subsequent
+`--environment preview` deployments are explicitly Preview. Do not promote,
+change all-deployment protection, or merge to `main` as part of preview QA.
+
+GitHub Actions independently verifies pushes. Vercel's repository connection is
+confirmed, but the first post-connection push did not produce an automatic
+deployment during inspection. The current preview was deployed explicitly with
+the CLI. Automatic push-to-preview delivery remains an operational acceptance
+item; do not infer that it works just because the connection is displayed.
 
 ## Build configuration
 
@@ -119,7 +129,7 @@ Continue release work in this order:
    project and candidate immediately before that release.
 
 The documentation does not grant new publication authority. No public launch,
-custom domain, paid-plan change, or successful hosted check is asserted here.
+custom domain or paid-plan change has been authorized.
 Deployment commands and workflow behavior should be checked against the
 [current Vercel deployment documentation](https://vercel.com/docs/deployments)
 when executing a release.

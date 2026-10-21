@@ -16,13 +16,17 @@ validated predictions.
 
 ## Project status
 
-As of 2026-10-20, the private GitHub repository
-[`owekel/paletteai`](https://github.com/owekel/paletteai) and the Vercel project
-`paletteai` have been created. No deployment is recorded in this handoff.
-The checkout is linked to Vercel, with SSO protection configured for all
-deployments. Enforcement on a hosted preview, runtime and physical-phone
-testing, and approval for public launch remain outstanding. Build targets and
-automated checks do not establish browser or device compatibility.
+As of 2026-10-21, source is in the private
+[`owekel/paletteai`](https://github.com/owekel/paletteai) repository. The Vercel
+GitHub App is installed for this repository only, and project `paletteai` is
+connected. A [sign-in-protected preview](https://paletteai-fi909aul4-owekel.vercel.app)
+is available for review; public launch is **not approved**.
+
+The local suite has 131 passing checks. Hosted Chromium photo analysis and
+try-on have been exercised, but real-camera and physical-phone acceptance
+remain outstanding. See the exact deployment, evidence and outstanding items
+in [launch readiness](docs/launch-readiness.md). Build targets and viewport
+emulation do not establish device compatibility.
 
 See [deployment and release instructions](docs/deployment.md),
 [privacy architecture](docs/privacy-architecture.md), and
