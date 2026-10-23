@@ -90,6 +90,16 @@ await test('Full-quality capture and live guide use the same unmirrored portrait
   assert.equal(canvas.width,810); assert.equal(canvas.height,1080)
   assert.deepEqual(drawn.slice(1),[555,0,810,1080,0,0,810,1080])
 })
+await test('Selfie reflection preserves symmetric centering and pose guidance', () => {
+  for (const centerX of [0.15, 0.36, 0.5, 0.64, 0.85]) {
+    const metrics = { ...captureFixture(), centerX, rollDegrees: 8 }
+    const raw = evaluateCaptureQuality(metrics)
+    const reflected = evaluateCaptureQuality({ ...metrics, centerX: 1 - centerX, rollDegrees: -8 })
+    assert.equal(raw.blocker, reflected.blocker)
+    assert.ok(Math.abs(raw.subscores.framing - reflected.subscores.framing) < 1e-12)
+    assert.ok(Math.abs(raw.score - reflected.score) < 1e-12)
+  }
+})
 await test('A camera permission promise resolving after cancellation releases every track', async () => {
   let resolve!: (value: unknown) => void, stops = 0
   const original = Object.getOwnPropertyDescriptor(globalThis,'navigator')

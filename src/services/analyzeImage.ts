@@ -16,7 +16,7 @@ import {
   sampleSkinPolygon,
   type RegionSample,
 } from './vision/colourSampling'
-import { withTimeout } from './vision/loadVisionModels'
+import { loadVisionImage, throwIfAborted } from './vision/modelLifecycle'
 import { sampleLightingReferences } from './vision/illuminationSampling'
 import {
   calculateShadowSeasonMeasurements,
@@ -28,8 +28,8 @@ import { buildSeasonAnalysis } from './seasonAnalysis'
 
 // --- V1 fallback regions (unchanged) ----------------------------------------
 // Approximate sample regions, expressed as a fraction of the image's
-// width/height. Only used when face detection isn't available or doesn't
-// find anything — see runFallbackSampling below.
+// width/height. Only used when successful detection doesn't find usable
+// regions — model/download failures must remain retryable errors.
 const REGIONS = {
   skin: { xStart: 0.38, xEnd: 0.62, yStart: 0.42, yEnd: 0.58 },
   hair: { xStart: 0.32, xEnd: 0.68, yStart: 0.04, yEnd: 0.14 },
@@ -54,15 +54,6 @@ const EYE_REFERENCE_COLORS: { name: string; rgb: RGB }[] = [
   { name: 'Blue', rgb: { r: 90, g: 120, b: 150 } },
   { name: 'Gray', rgb: { r: 140, g: 140, b: 145 } },
 ]
-
-function loadImage(dataUrl: string): Promise<HTMLImageElement> {
-  return new Promise((resolve, reject) => {
-    const image = new Image()
-    image.onload = () => resolve(image)
-    image.onerror = () => reject(new Error('Could not load the selected image.'))
-    image.src = dataUrl
-  })
-}
 
 // Plain-average sampler — kept only for the V1 fallback path.
 function averageColorInRegion(
@@ -182,13 +173,16 @@ async function tryComputerVisionAnalysis(
   context: CanvasRenderingContext2D,
   imgWidth: number,
   imgHeight: number,
+  signal?: AbortSignal,
 ): Promise<PipelineResult | null> {
   // Face detection and hair segmentation are independent models — kick both
   // off at once rather than waiting for one before starting the other.
-  const regionsPromise = withTimeout(detectFaceRegions(image), 12000, 'Face detection').catch(() => null)
-  const hairMaskPromise = withTimeout(detectHairMask(image), 12000, 'Hair segmentation').catch(() => null)
-
-  const regions = await regionsPromise
+  throwIfAborted(signal)
+  const [regions, hairMask] = await Promise.all([
+    detectFaceRegions(image, signal),
+    detectHairMask(image, signal),
+  ])
+  throwIfAborted(signal)
   if (!regions) return null
 
   // --- Skin: three sub-samples, combined ---
@@ -222,8 +216,6 @@ async function tryComputerVisionAnalysis(
     : (leftEyeSample.color ?? rightEyeSample.color ?? { r: 120, g: 100, b: 90 })
 
   // --- Hair: sample only pixels the segmentation model identifies as hair ---
-  const hairMask = await hairMaskPromise
-
   let hairRgb: RGB
   let hairPixelCount = 0
   let hairAreaPixelCount = 0
@@ -298,43 +290,40 @@ async function tryComputerVisionAnalysis(
 
 // --- Public entry point ------------------------------------------------------
 
-export async function analyzeImage(imageDataUrl: string): Promise<ColorProfile> {
-  const image = await loadImage(imageDataUrl)
+export async function analyzeImage(imageDataUrl: string, signal?: AbortSignal): Promise<ColorProfile> {
+  throwIfAborted(signal)
+  const image = await loadVisionImage(imageDataUrl, signal)
+  throwIfAborted(signal)
 
   const canvas = document.createElement('canvas')
-  canvas.width = image.naturalWidth
-  canvas.height = image.naturalHeight
-
-  const context = canvas.getContext('2d', { willReadFrequently: true })
-  if (!context) {
-    throw new Error('Canvas is not supported in this browser.')
-  }
-  context.drawImage(image, 0, 0)
-
-  let pipelineResult: PipelineResult
   try {
-    pipelineResult =
-      (await tryComputerVisionAnalysis(image, context, canvas.width, canvas.height)) ??
+    canvas.width = image.naturalWidth
+    canvas.height = image.naturalHeight
+    const context = canvas.getContext('2d', { willReadFrequently: true })
+    if (!context) throw new Error('Canvas is not supported in this browser.')
+    context.drawImage(image, 0, 0)
+
+    const pipelineResult =
+      (await tryComputerVisionAnalysis(image, context, canvas.width, canvas.height, signal)) ??
       runFallbackSampling(context, canvas.width, canvas.height)
-  } catch {
-    // Any unexpected failure anywhere in the computer-vision pipeline falls
-    // back to the original, dependency-free sampling rather than crashing.
-    pipelineResult = runFallbackSampling(context, canvas.width, canvas.height)
-  }
+    throwIfAborted(signal)
 
-  const { hairRgb, eyeRgb, measurementInput } = pipelineResult
-  const hairMatch = nearestNamedColor(hairRgb, HAIR_REFERENCE_COLORS)
-  const eyeMatch = nearestNamedColor(eyeRgb, EYE_REFERENCE_COLORS)
-  const shadowMeasurements = calculateShadowSeasonMeasurements(measurementInput)
-  const shadowSeasonClassification = classifyShadowSeason(shadowMeasurements)
+    const { hairRgb, eyeRgb, measurementInput } = pipelineResult
+    const hairMatch = nearestNamedColor(hairRgb, HAIR_REFERENCE_COLORS)
+    const eyeMatch = nearestNamedColor(eyeRgb, EYE_REFERENCE_COLORS)
+    const shadowMeasurements = calculateShadowSeasonMeasurements(measurementInput)
+    const shadowSeasonClassification = classifyShadowSeason(shadowMeasurements)
 
-  return {
-    hairColor: hairMatch.name,
-    hairColorHex: rgbToHex(hairRgb),
-    eyeColor: eyeMatch.name,
-    eyeColorHex: rgbToHex(eyeRgb),
-    shadowMeasurements,
-    shadowSeasonClassification,
-    analysis: buildSeasonAnalysis(shadowMeasurements, shadowSeasonClassification),
+    return {
+      hairColor: hairMatch.name,
+      hairColorHex: rgbToHex(hairRgb),
+      eyeColor: eyeMatch.name,
+      eyeColorHex: rgbToHex(eyeRgb),
+      shadowMeasurements,
+      shadowSeasonClassification,
+      analysis: buildSeasonAnalysis(shadowMeasurements, shadowSeasonClassification),
+    }
+  } finally {
+    canvas.width = canvas.height = 0
   }
 }

@@ -55,13 +55,20 @@ export interface CaptureObservation {
   quality?: CaptureQuality
   frame?: CaptureFrame
 }
+export type CaptureFacingMode = 'user' | 'environment'
+export interface CaptureOpenOptions { facingMode?: CaptureFacingMode }
 export interface CaptureSource {
   sample(): Promise<CaptureObservation>
   capture(): string
   stop(): void
+  /** Actual track setting only; used to enable supported front/rear switching. */
+  facingMode?: CaptureFacingMode
+  /** Live presentation only; includes recognized front webcams without facingMode. */
+  mirrorPreview?: boolean
+  canSwitchCamera?: boolean
 }
 export interface CaptureRuntime {
-  open(video: HTMLVideoElement, signal: AbortSignal): Promise<CaptureSource>
+  open(video: HTMLVideoElement, signal: AbortSignal, options?: CaptureOpenOptions): Promise<CaptureSource>
   verify(image: string, signal: AbortSignal): Promise<ColorProfile>
   /** Developer fixtures only, never set by the production runtime. */
   fixtureImage?: string

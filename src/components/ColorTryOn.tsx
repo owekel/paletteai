@@ -64,6 +64,7 @@ export default function ColorTryOn({ imageDataUrl, palette, recommendationLabel 
   const [isApplying, setIsApplying] = useState(false)
   const [applyError, setApplyError] = useState<string | null>(null)
   const [view, setView] = useState<'before' | 'after'>('after')
+  const [preparationAttempt, setPreparationAttempt] = useState(0)
 
   const sessionRef = useRef<ClothingRecolorSession | null>(null)
   const applicationTimerRef = useRef<number | null>(null)
@@ -95,7 +96,7 @@ export default function ColorTryOn({ imageDataUrl, palette, recommendationLabel 
   }
 
   useEffect(() => {
-    let cancelled = false
+    const abort = new AbortController()
     setStatus('loading')
     setRecoloredDataUrl(null)
     setSelectedHex(null)
@@ -105,9 +106,13 @@ export default function ColorTryOn({ imageDataUrl, palette, recommendationLabel 
     setCustomHex(DEFAULT_CUSTOM_HEX)
     sessionRef.current = null
 
-    prepareClothingRecolorSession(imageDataUrl)
+    const preparationTimer = window.setTimeout(() => {
+      abort.abort()
+      setStatus('error')
+    }, 25000)
+    prepareClothingRecolorSession(imageDataUrl, abort.signal)
       .then((session) => {
-        if (cancelled) return
+        if (abort.signal.aborted) return
         if (!session || !session.hasClothing) {
           setStatus('no-clothing')
           return
@@ -119,18 +124,20 @@ export default function ColorTryOn({ imageDataUrl, palette, recommendationLabel 
         if (firstColor) applyColor(firstColor.hex)
       })
       .catch(() => {
-        if (!cancelled) setStatus('error')
+        if (!abort.signal.aborted) setStatus('error')
       })
+      .finally(() => window.clearTimeout(preparationTimer))
 
     return () => {
-      cancelled = true
+      abort.abort()
+      window.clearTimeout(preparationTimer)
       if (applicationTimerRef.current !== null) window.clearTimeout(applicationTimerRef.current)
       applicationTimerRef.current = null
       sessionRef.current = null
     }
-    // Only the photo itself should restart this — palette/swatchOptions
+    // The photo or an explicit retry restarts this — palette/swatchOptions
     // are effectively static for the lifetime of a results page.
-  }, [imageDataUrl])
+  }, [imageDataUrl, preparationAttempt])
 
   // A comparison clicked above queues until segmentation is ready. Only the
   // requested colour changes; the prepared mask/session is reused.
@@ -168,6 +175,7 @@ export default function ColorTryOn({ imageDataUrl, palette, recommendationLabel 
         <p role="status" className="ui-copy">{status === 'loading' ? 'Preparing your clothing preview…' : status === 'error'
           ? 'Try-on couldn’t prepare this photo. Your palette is still ready to explore.'
           : 'For try-on, choose a portrait that shows more of your top. Your colour guide is still ready.'}</p>
+        {status === 'error' && <button className="ui-text-action mt-3" onClick={() => setPreparationAttempt(attempt => attempt + 1)}>Try clothing preview again</button>}
       </div>}
 
       {status === 'ready' && (

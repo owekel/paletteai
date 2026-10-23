@@ -12,7 +12,7 @@
 .capture-session-note { grid-column: 1 / -1; color: var(--text-secondary); font-size: .75rem; }
 .capture-layout { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, .8fr); gap: var(--space-8); align-items: start; }
 .capture-view { position: relative; width: 100%; max-width: 600px; aspect-ratio: 3 / 4; overflow: hidden; border-radius: var(--radius-camera); background: var(--text-primary); }
-.capture-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
+.capture-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
 .capture-guide { position: absolute; inset: 0; width: 100%; height: 100%; color: #fff9; pointer-events: none; transition: color var(--motion-fast); }
 .capture-holding .capture-guide { color: white; }
 .capture-holding .capture-guide ellipse { stroke-dasharray: 0; }

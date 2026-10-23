@@ -1,0 +1,24 @@
+PaletteAI — third-party notices
+
+Runtime and models
+MediaPipe Tasks Vision 1.0.1 — Google LLC — Apache License 2.0.
+License: /licenses/MediaPipe.txt
+Source: https://github.com/google-ai-edge/mediapipe
+Pinned public model sources and checksums: scripts/vision-assets.json in the repository.
+Face model card: https://storage.googleapis.com/mediapipe-assets/Model%20Card%20MediaPipe%20Face%20Mesh%20V2.pdf
+Segmentation model card: https://storage.googleapis.com/mediapipe-assets/Model%20Card%20Multiclass%20Segmentation.pdf
+These components are redistributed without modification. PaletteAI's surrounding
+measurement, presentation and recolouring code is separate application code.
+
+React, React DOM and Scheduler 18.3.1 / 0.23.2 — Meta Platforms, Inc. and affiliates.
+MIT licenses: /licenses/React.txt, /licenses/ReactDOM.txt, /licenses/Scheduler.txt
+Source: https://github.com/facebook/react
+
+Fonts (bundled via Fontsource Variable 5.3.0)
+Inter — SIL Open Font License 1.1: /licenses/Inter.txt
+Fraunces — SIL Open Font License 1.1: /licenses/Fraunces.txt
+Source: https://github.com/fontsource/font-files
+Fonts are unmodified; only Latin variable font assets are served.
+
+Build-tool licenses are included in their installed npm packages. The repository
+lockfile records exact versions; these notices do not relicense PaletteAI itself.

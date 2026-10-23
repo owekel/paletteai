@@ -9,9 +9,17 @@ vite.config.js
 vite.config.d.ts
 
 # Local env files
-.env
-.env.local
-.env.*.local
+.env*
+!.env.example
+.vercel/
+.cache/
+public/vision/
+playwright-report/
+test-results/
+tests/local/
+*.y4m
+*.pem
+*.key
 
 # Editor/OS
 .vscode/*
@@ -30,3 +38,4 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 *.log
+.vercel

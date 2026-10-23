@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { analyzeImage } from '../services/analyzeImage'
+import { describeAnalysisError } from '../services/vision/loadVisionModels'
 import type { ColorProfile } from '../types/colorProfile'
 import ProcessingMark from './ProcessingMark'
 
@@ -7,6 +8,7 @@ interface AnalysisLoadingProps {
   imageDataUrl: string
   onComplete: (profile: ColorProfile) => void
   onError?: (message: string) => void
+  onCancel?: () => void
 }
 
 const STAGES = [
@@ -25,29 +27,31 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-export default function AnalysisLoading({ imageDataUrl, onComplete, onError }: AnalysisLoadingProps) {
+export default function AnalysisLoading({ imageDataUrl, onComplete, onError, onCancel }: AnalysisLoadingProps) {
   const [stageIndex, setStageIndex] = useState(0)
 
   useEffect(() => {
     let isCancelled = false
+    const abort = new AbortController()
 
     const stageTimer = window.setInterval(() => {
       setStageIndex((current: number) => Math.min(current + 1, STAGES.length - 1))
     }, STAGE_INTERVAL_MS)
 
-    Promise.all([analyzeImage(imageDataUrl), wait(MINIMUM_TOTAL_MS)])
+    Promise.all([analyzeImage(imageDataUrl, abort.signal), wait(MINIMUM_TOTAL_MS)])
       .then(([profile]) => {
         if (!isCancelled) onComplete(profile)
       })
-      .catch(() => {
+      .catch((error) => {
         if (!isCancelled) {
-          onError?.('We could not analyze that photo. Please try a different one.')
+          onError?.(describeAnalysisError(error))
         }
       })
       .finally(() => window.clearInterval(stageTimer))
 
     return () => {
       isCancelled = true
+      abort.abort()
       window.clearInterval(stageTimer)
     }
     // This effect should only restart when the photo itself changes — not
@@ -60,6 +64,7 @@ export default function AnalysisLoading({ imageDataUrl, onComplete, onError }: A
       <h1 className="ui-heading mt-7">Building your colour profile</h1>
       <p role="status" aria-live="polite" className="mt-4 text-sm text-ink-soft">{STAGES[stageIndex]}</p>
       <p className="mt-8 text-xs text-ink-soft">A little colour, considered carefully.</p>
+      {onCancel && <button className="ui-text-action mt-6" onClick={onCancel}>Cancel analysis</button>}
     </div>
   )
 }
