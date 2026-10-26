@@ -1,38 +1,39 @@
 # Deployment and release
 
-This document describes the configuration and release procedure. The exact
-verification record and remaining acceptance work are in [launch readiness](launch-readiness.md).
+This document describes the current configuration and update procedure. The
+[public launch record](final-launch-2026-10-22.md) distinguishes verified checks,
+owner-reported device acceptance and remaining coverage. The earlier
+[readiness report](launch-readiness.md) is historical.
 
-## Handoff status — 2026-10-21
+## Public release — verified October 26, 2026
 
 | Item | Recorded state |
 | --- | --- |
-| Source repository | Private GitHub repository [`owekel/paletteai`](https://github.com/owekel/paletteai) created |
-| Hosting project | Vercel project `paletteai` created; local checkout linked |
+| Source repository | Private [`owekel/paletteai`](https://github.com/owekel/paletteai) |
+| Hosting project | Existing Vercel project `paletteai`; local checkout linked |
 | Project ID | `prj_pC1sAOSErJjzSV2W7WY515BmDZNx` |
 | Team ID | `team_TVv8mejjkym3InSYKZAray6v` |
-| Deployment protection | Vercel Authentication for **all** deployments; anonymous requests redirect to sign-in |
-| Review branch | `codex/production-readiness`; application checkpoint `512e57f` |
-| Protected preview | [paletteai-fi909aul4-owekel.vercel.app](https://paletteai-fi909aul4-owekel.vercel.app) |
+| Deployment protection | Vercel Authentication **Standard Protection**: public production domain; authenticated previews/generated deployment URLs |
+| Review branch | `codex/production-readiness`, PR #1 merged; latest application checkpoint `035a111` |
+| Protected preview | [paletteai-1ly275sux-owekel.vercel.app](https://paletteai-1ly275sux-owekel.vercel.app) |
 | Git connection | `owekel/paletteai` connected; GitHub App limited to this repository |
-| Production branch | `main`; integration changes have not been merged there |
-| Production URL / domain | A protected bootstrap alias exists at `paletteai-sepia.vercel.app`; no custom domain or public launch |
-| Release acceptance | Physical-phone/live-camera QA and owner approval remain required |
+| Production branch | `main`; initial public merge `c7a55283a1272ae1bcfe33fd8b9869ce17395199` |
+| Production domain | [paletteai-sepia.vercel.app](https://paletteai-sepia.vercel.app), public; no purchased custom domain |
+| Release acceptance | Owner approved public launch and reported successful Mac/iPhone testing; see explicit verification limits in the launch record |
 
-Confirm current provider state before releases. The first CLI request was
-labelled Production by Vercel despite requesting a preview; it was protected
-before creation and anonymous access remained blocked. The subsequent
-`--environment preview` deployments are explicitly Preview. Do not promote,
-change all-deployment protection, or merge to `main` as part of preview QA.
+Confirm provider state before each release. The initial public deployment was
+`dpl_E5HELe9GzAcQ7dy6vL7pK8dwMjpK`, Git source, Production, READY, from `c7a55283`.
+Its generated URL remains authenticated. The protection API setting is
+`prod_deployment_urls_and_all_previews`; zero automation bypass entries remained
+at the final check. Do not disable deployment protection globally.
 
-GitHub Actions independently verifies pushes. Automatic Git delivery is also
-confirmed: Vercel created `dpl_GEUCi4a3Cx4YefDhAoRzq7jJjJmJ` from GitHub commit
-`512e57f` (`source: git`, Preview, READY). Its URL is
-[paletteai-587ifeoir-owekel.vercel.app](https://paletteai-587ifeoir-owekel.vercel.app).
-The first event took several minutes after connection; a CLI preview of the
-same application commit was tested meanwhile. Subsequent non-main pushes create
-protected previews. Keep the [draft release review](https://github.com/owekel/paletteai/pull/1)
-unmerged until the acceptance checks and launch approval are complete.
+GitHub Actions independently verifies pushes. Vercel's Git integration creates
+protected previews for non-main branches and production deployments for main.
+Its build command also runs the full checks. GitHub CI is not configured as a
+separate deployment gate: inspect both CI and Vercel status before accepting a
+release. [Release review #1](https://github.com/owekel/paletteai/pull/1) is merged.
+Use a feature branch and pull request for future application changes; test the
+preview, then merge only the intended reviewed commit to main.
 
 ## Build configuration
 
@@ -127,21 +128,22 @@ Continue release work in this order:
    commit and build result. Keep it protected while review is pending.
 4. Run the hosted and device checks below. Record failures and limitations
    against that exact candidate.
-5. Obtain the owner's approval for public launch before making production
-   publicly accessible or attaching a public domain. Recheck the intended
-   project and candidate immediately before that release.
+5. Merge approved updates to main for the existing automatic production flow.
+   Recheck the actual production commit, READY status, public site, protected
+   preview and affected runtime journeys. A successful build alone is not QA.
 
-The documentation does not grant new publication authority. No public launch,
-custom domain or paid-plan change has been authorized.
+The owner authorized this public launch. This document does not grant authority
+for unrelated publications, custom-domain purchases or paid-plan changes.
 Deployment commands and workflow behavior should be checked against the
 [current Vercel deployment documentation](https://vercel.com/docs/deployments)
 when executing a release.
 
-## Pending manual acceptance
+## Device acceptance checklist
 
-Automated checks and desktop viewport resizing do not replace physical-device
-testing. At minimum, record results for desktop Chrome and Safari, iPhone
-Safari, and Android Chrome:
+Automated checks and viewport resizing do not replace physical-device testing.
+Mac/iPhone acceptance is owner-reported; Android and the complete anonymous
+network/storage trace remain unverified. Use this checklist for future changes
+and record exactly which cases/device versions were exercised:
 
 - Open the actual HTTPS preview and refresh `/privacy` directly. Confirm
   fonts, scripts, both model files and WASM load under the deployed CSP.
@@ -181,8 +183,9 @@ build usage. Model/WASM downloads can make uncached visits materially larger
 than a text-only site. Private-repository CI, optional protection features and
 any future custom domain can also affect costs.
 
-This is not a price estimate or a promise of free hosting. Before launch,
-verify the selected account's plan, intended-use eligibility, included usage,
+The active team was verified as Hobby at launch; no upgrade or purchase was
+made. This is not a price estimate or a promise of unlimited/free hosting.
+Periodically verify the account's plan, intended-use eligibility, included usage,
 overage behavior, access-protection features and spending controls against
 [Vercel pricing](https://vercel.com/pricing) and
 [GitHub Actions billing](https://docs.github.com/en/billing/concepts/product-billing/github-actions).
@@ -190,5 +193,8 @@ Those terms can change; no fixed prices or quotas are relied on here.
 
 Record each accepted release's commit and deployment identity. If a regression
 requires rollback, select a previously verified deployment in the intended
-project, then repeat the affected hosted checks. No prior verified production
-deployment is recorded yet.
+project, then repeat the affected hosted checks. The first verified public
+checkpoint is `dpl_E5HELe9GzAcQ7dy6vL7pK8dwMjpK` at `c7a55283`; confirm it is
+still retained before using it. Rollback can disable automatic domain assignment
+until a subsequent promotion restores it. Do not silently select an older
+bootstrap deployment that lacks the accepted camera/footer fixes.

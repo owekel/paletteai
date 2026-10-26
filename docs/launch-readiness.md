@@ -1,5 +1,10 @@
 # Launch candidate status
 
+**Historical protected-candidate report.** Superseded by the
+[public launch verification](final-launch-2026-10-22.md). The owner subsequently
+approved launch, PR #1 was merged, and production is public with Standard
+Protection retained for previews. Statements below describe the earlier review.
+
 2026-10-21 — protected review candidate. Public launch is **not approved**.
 
 ## UI follow-up — 2026-10-21

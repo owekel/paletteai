@@ -15,7 +15,15 @@ not permitted. Camera permission is same-origin only; microphone, payment and
 location are disabled. Avoid weakening the policy to add preview toolbars or
 analytics. Test the actual host headers after deployment.
 
-## Dependency review (2026-10-19)
+## Current audit (2026-10-26)
+
+Fresh `npm audit --omit=dev --json` and `npm audit --json` both exit 0 and report
+zero vulnerabilities. No dependency or lockfile changes were made in this
+follow-up. Advisory-service results can change; this is the observed result,
+not a claim that a new code fix was applied. The earlier build-only exception
+is retained below as history, and CI continues to report the full tooling audit.
+
+## Historical dependency review (2026-10-19)
 
 The initial audit found 10 affected dependency nodes. Vite is upgraded from
 unsupported 5.x to the supported 7.3 security/important-fix line; esbuild and CSS
@@ -24,9 +32,9 @@ behavior. Its two model files are downloaded at build time with reviewed SHA-256
 checksums; runtime requests are same-origin. CI fails on model checksum changes.
 
 `npm audit --omit=dev` reports no vulnerabilities at this audit date. The full
-audit still reports five affected nodes rooted in **braces <=3.0.3**
+audit at that time reported five affected nodes rooted in **braces <=3.0.3**
 ([GHSA-vfj7-8cjw-p6xm](https://github.com/advisories/GHSA-vfj7-8cjw-p6xm)). The
-latest available braces release is 3.0.3. Tailwind 3 uses it for build-time glob
+latest available braces release then was 3.0.3. Tailwind 3 uses it for build-time glob
 patterns through chokidar/micromatch/fast-glob. No parser or development server
 is served to visitors; the patterns here are fixed trusted source configuration.
 Do not process untrusted glob patterns or expose the development server publicly.
@@ -43,7 +51,8 @@ its non-blocking status is not a claim that all dependencies are vulnerability-f
 
 - Keep GitHub private; grant the Vercel GitHub App access only to this repository.
 - Verify deployment protection on every preview. An unlisted URL is not private.
-- Keep production protected/unpublished until the owner approves launch.
+- The owner approved public launch. Keep Standard Protection enabled: public
+  production domain, authenticated previews and generated deployment URLs.
 - Never commit real test portraits, camera fixtures, browser auth state or traces
   containing photo data. Local fixtures go in ignored `tests/local/`.
 - Avoid error-report payloads that serialize component state, canvas data,
@@ -51,4 +60,4 @@ its non-blocking status is not a claim that all dependencies are vulnerability-f
 - Restart drops photo/result references and releases still-image models.
   Browser memory reclamation is not secure erasure; public models may be cached.
 - Re-run `npm run check`, runtime journey checks and dependency audits before
-  deploying updates. See `deployment.md` and `launch-readiness.md`.
+  deploying updates. See `deployment.md` and `final-launch-2026-10-22.md`.

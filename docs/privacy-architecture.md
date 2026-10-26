@@ -1,11 +1,12 @@
 # Privacy architecture
 
-This document describes the application code and configuration reviewed on
-2026-10-21. Source inspection, hosted asset checks and a Chromium photo/try-on
-journey are recorded in [launch readiness](launch-readiness.md). A complete
-network/storage trace of real camera use and physical-device acceptance remain
-pending. Vercel Authentication is configured for all deployments; anonymous
-requests to the preview and bootstrap alias were verified to require sign-in.
+This document describes the application architecture reviewed for public launch.
+See the [final launch record](final-launch-2026-10-22.md) for source inspection,
+hosted asset checks, Chromium upload/try-on testing and privacy audit limits.
+Mac/iPhone acceptance is owner-reported; a complete anonymous full-session
+network/storage trace and physical-camera packet trace were not completed.
+Vercel Standard Protection leaves the production domain public and protects
+previews and generated deployment URLs; anonymous access checks confirmed this.
 
 ## Processing boundary
 
@@ -126,6 +127,6 @@ shared build artifacts. Use ignored `tests/local/` for consented local fixtures.
 Do not add analytics, external scripts, storage or remote analysis without
 updating this document and the consumer privacy page to match the new behavior.
 
-See [deployment acceptance](deployment.md#pending-manual-acceptance) and
-[security maintenance](security.md). Public launch still requires the owner's
-approval; this document records architecture, not launch readiness.
+See [device acceptance](deployment.md#device-acceptance-checklist) and
+[security maintenance](security.md). This document records architecture; the
+launch record distinguishes confirmed checks from remaining coverage.
