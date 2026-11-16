@@ -31,8 +31,8 @@ These notes were put together after development, using my discussions and the co
 ## Project status
 
 **Live:** [paletteai-sepia.vercel.app](https://paletteai-sepia.vercel.app).
-I approved the public website launch; PR #1 was merged into `main`. The source remains
-in my private [`owekel/paletteai`](https://github.com/owekel/paletteai) repository.
+I launched the website in October 2026. The source code, tests, and project notes
+are in this [`owekel/paletteai`](https://github.com/owekel/paletteai) repository.
 Vercel project `paletteai` uses Standard Protection: the production domain is
 public, while previews and generated deployment URLs require authorization.
 The Vercel GitHub App is limited to this repository.
