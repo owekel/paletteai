@@ -1,34 +1,30 @@
-# PaletteAI collaboration guide
+# PaletteAI contributor notes
 
-## Working source
+PaletteAI is a React/TypeScript/Vite browser application for personal colour exploration, guided photo capture, and local clothing-colour try-on.
 
-- This folder is the persistent source of truth. Edit it in place; do not create a new ZIP for each iteration.
-- The baseline is the premium Results + Color Try-On UX with the v4 adaptive clothing recoloring work.
-- Keep changes small and testable. Preserve unrelated user work.
+The live site is https://paletteai-sepia.vercel.app. Product context is in [README.md](README.md), [docs/SPEC.md](docs/SPEC.md), [docs/DESIGN_DECISIONS.md](docs/DESIGN_DECISIONS.md), and [docs/AI_DEVELOPMENT.md](docs/AI_DEVELOPMENT.md).
 
-## Protected areas
+## Working on this codebase
 
-Unless the user explicitly expands the scope, do not change:
+- Preserve the user's existing work and keep changes focused on the requested issue.
+- Before altering classification, capture, palettes, or recolouring, read the relevant engineering documentation under `docs/`; don't silently change unrelated numerical policies.
+- Keep portraits, local camera test material, access tokens, browser-session traces, and sensitive environment files out of Git. The `tests/local/` folder is ignored for local-only photos.
+- Browser processing and local-photo privacy are core product constraints. Do not add remote image analysis, analytics, storage, or external scripts without a deliberate privacy review.
+- Don't claim automated software checks establish scientifically validated colour-season accuracy.
+- When working on the public website, preserve the distinction between production and access-protected Vercel previews.
 
-- seasonal analysis or classification
-- face, hair, or eye detection
-- palette generation
-- camera capture
-- unrelated pages or Results/Try-On UX
+## Local development and checks
 
-## Current tuning area
+Use the Node.js version in `.nvmrc` (Node 24) and the existing lockfile.
 
-- Clothing recoloring lives in `src/services/clothingRecolor.ts`.
-- Dark colors currently use percentile-based HSL tone mapping.
-- Light colors use a linear-light fabric multiplier, blended in for target lightness values from 62 to 80.
-- The clothing mask uses a narrow, continuous feather derived from the blurred alpha channel.
-- When tuning visuals, compare both white-to-black and black-to-white examples and preserve folds, texture, and smooth edges.
+```sh
+npm ci
+npm run dev
+npm run check
+```
 
-## Run and verify
+`npm run check` runs TypeScript validation, tests, and a production build. `npm run lint` is also TypeScript validation, not a separate ESLint setup. If a command fails, report the actual current failure rather than treating old notes as active issues.
 
-- Install once with `npm install`.
-- Start the live preview with `npm run dev`.
-- Validate production bundling with `npx vite build`.
-- `npm run lint` currently reports a pre-existing MediaPipe type-definition error in `src/services/vision/loadVisionModels.ts`: `WasmFileset` is declared locally but not exported. Do not attribute that error to recoloring-only changes.
+A preview or release should be reviewed for affected functionality as well as passing checks, especially camera operation on real devices, model loading, results, try-on, and privacy behavior.
 
-Use the live preview and screenshots for iterative visual review. Keep a Git checkpoint for each accepted version so changes can be compared or rolled back.
+AI-assisted development is documented transparently in [docs/AI_DEVELOPMENT.md](docs/AI_DEVELOPMENT.md).
