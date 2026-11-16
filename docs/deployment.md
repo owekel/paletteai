@@ -9,10 +9,8 @@ owner-reported device acceptance and remaining coverage. The earlier
 
 | Item | Recorded state |
 | --- | --- |
-| Source repository | Private [`owekel/paletteai`](https://github.com/owekel/paletteai) |
+| Source repository | [`owekel/paletteai`](https://github.com/owekel/paletteai); visibility may change separately from website deployment |
 | Hosting project | Existing Vercel project `paletteai`; local checkout linked |
-| Project ID | `prj_pC1sAOSErJjzSV2W7WY515BmDZNx` |
-| Team ID | `team_TVv8mejjkym3InSYKZAray6v` |
 | Deployment protection | Vercel Authentication **Standard Protection**: public production domain; authenticated previews/generated deployment URLs |
 | Review branch | `codex/production-readiness`, PR #1 merged; latest application checkpoint `035a111` |
 | Protected preview | [paletteai-1ly275sux-owekel.vercel.app](https://paletteai-1ly275sux-owekel.vercel.app) |
@@ -119,7 +117,8 @@ contains no deployment command and requires no deployment secrets.
 Continue release work in this order:
 
 1. Confirm the intended repository, Vercel team, project and reviewed commit.
-   Keep the GitHub repository private and scope any GitHub App access to it.
+   Keep the GitHub App scoped to this repository. Public repository visibility
+   does not imply that preview deployments should be publicly accessible.
 2. Verify the repository connection and deployment-protection settings before
    creating a preview. A private repository or unlisted URL does not make a
    website private. Connecting Git or pushing a configured production branch
@@ -180,7 +179,7 @@ Inference runs on the visitor's device, so this implementation makes no paid
 AI inference API calls and has no application database or server-compute
 workload. Hosting is still subject to provider plan terms, asset delivery and
 build usage. Model/WASM downloads can make uncached visits materially larger
-than a text-only site. Private-repository CI, optional protection features and
+than a text-only site. Repository CI, optional protection features and
 any future custom domain can also affect costs.
 
 The active team was verified as Hobby at launch; no upgrade or purchase was
