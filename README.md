@@ -14,6 +14,24 @@ account, photo upload endpoint, database, analytics SDK, or saved profile
 history. This is an experimental styling tool; its results are not scientifically
 validated predictions.
 
+## Product story and AI-assisted development
+
+This project was developed through AI-assisted coding: the owner guided product
+requirements, feature priorities, hands-on testing and acceptance, while AI
+coding tools produced and revised substantial portions of the implementation.
+The documents below explain both the shipped application and the reasoning
+behind its evolution:
+
+- [Product specification](docs/SPEC.md) — user goals, flows, requirements and limitations.
+- [Design decisions](docs/DESIGN_DECISIONS.md) — reliability, capture, uncertainty,
+  recolouring, privacy and visual-design trade-offs.
+- [AI-assisted development](docs/AI_DEVELOPMENT.md) — transparent ownership,
+  prompting patterns, review workflow and representative reconstructed examples.
+
+These are retrospective, evidence-bounded accounts. They do not claim scientific
+validation of personal colour classification or independently handwritten
+implementation of every subsystem.
+
 ## Project status
 
 **Live:** [paletteai-sepia.vercel.app](https://paletteai-sepia.vercel.app).
