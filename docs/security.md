@@ -49,10 +49,11 @@ its non-blocking status is not a claim that all dependencies are vulnerability-f
 
 ## Operational safeguards
 
-- Keep GitHub private; grant the Vercel GitHub App access only to this repository.
+- When changing GitHub visibility, review tracked files, Git history, branches, pull requests, Actions logs, and artifacts for sensitive data. A public repository exposes code and historic activity. Keep the Vercel GitHub App scoped to this repository.
 - Verify deployment protection on every preview. An unlisted URL is not private.
-- The owner approved public launch. Keep Standard Protection enabled: public
-  production domain, authenticated previews and generated deployment URLs.
+- The website's public launch was approved in October 2026. Keep Standard
+  Protection enabled: public production domain, authenticated previews and
+  generated deployment URLs.
 - Never commit real test portraits, camera fixtures, browser auth state or traces
   containing photo data. Local fixtures go in ignored `tests/local/`.
 - Avoid error-report payloads that serialize component state, canvas data,
