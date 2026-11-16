@@ -14,35 +14,31 @@ account, photo upload endpoint, database, analytics SDK, or saved profile
 history. This is an experimental styling tool; its results are not scientifically
 validated predictions.
 
-## Product story and AI-assisted development
+## Why I built PaletteAI (and how I built it)
 
-This project was developed through AI-assisted coding: the owner guided product
-requirements, feature priorities, hands-on testing and acceptance, while AI
-coding tools produced and revised substantial portions of the implementation.
-The documents below explain both the shipped application and the reasoning
-behind its evolution:
+I started PaletteAI because I wanted to turn personal colour analysis into something people could actually try for themselves. As I built and tested it, I realised the hard part wasn't just generating a season result — it was getting usable photos, dealing with unreliable lighting, and making the recommendations helpful even when the result wasn't clear-cut.
 
-- [Product specification](docs/SPEC.md) — user goals, flows, requirements and limitations.
-- [Design decisions](docs/DESIGN_DECISIONS.md) — reliability, capture, uncertainty,
-  recolouring, privacy and visual-design trade-offs.
-- [AI-assisted development](docs/AI_DEVELOPMENT.md) — transparent ownership,
-  prompting patterns, review workflow and representative reconstructed examples.
+I built PaletteAI with a lot of help from AI coding tools. I decided what to build, worked through feature ideas, tested versions of the app, pointed out problems, and directed changes. AI tools wrote and revised significant amounts of the React/TypeScript code. I'm sharing that distinction because I think the product decisions and the iteration process are a big part of this project.
 
-These are retrospective, evidence-bounded accounts. They do not claim scientific
-validation of personal colour classification or independently handwritten
-implementation of every subsystem.
+I wrote up that process here:
+
+- **[Product specification](docs/SPEC.md)** — what I wanted the app to do and what it does today.
+- **[Design decisions](docs/DESIGN_DECISIONS.md)** — the problems I ran into, the choices I made, and the trade-offs.
+- **[How I used AI to build it](docs/AI_DEVELOPMENT.md)** — how I turned ideas and feedback into working features, with reconstructed examples of the directions I gave AI tools.
+
+These notes were put together after development, using my discussions and the codebase. They're not original day-one specs or verbatim transcripts. PaletteAI is an experimental styling project, not a scientifically validated way to determine someone's colour season.
 
 ## Project status
 
 **Live:** [paletteai-sepia.vercel.app](https://paletteai-sepia.vercel.app).
-The owner approved public launch; PR #1 is merged into `main`. Source remains
-in the private [`owekel/paletteai`](https://github.com/owekel/paletteai) repository.
+I approved the public website launch; PR #1 was merged into `main`. The source remains
+in my private [`owekel/paletteai`](https://github.com/owekel/paletteai) repository.
 Vercel project `paletteai` uses Standard Protection: the production domain is
 public, while previews and generated deployment URLs require authorization.
 The Vercel GitHub App is limited to this repository.
 
 The suite has 135 passing checks. Hosted Chromium upload, analysis, results and
-try-on were exercised, and the owner reported successful Mac/iPhone acceptance.
+try-on were exercised, and I tested the app on Mac and iPhone before launch.
 See the [final launch record](docs/final-launch-2026-10-22.md) for exact release
 identities, privacy evidence and remaining coverage limits, including the
 incomplete full-session anonymous network/storage trace. Browser emulation is
